@@ -211,7 +211,7 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
         intentFilter.addDataScheme("file");
         registerReceiver(mUsbScanner,intentFilter);
         mPlayPicture = false;
-        mSystemControl = new SystemControlManager(this);
+        mSystemControl = SystemControlManager.getInstance();
         if (getIntent().getBooleanExtra(KEY_DISMISS_KEYGUARD, false)) {
             getWindow()
                 .addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
