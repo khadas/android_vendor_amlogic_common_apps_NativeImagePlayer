@@ -66,12 +66,15 @@ import java.text.DecimalFormat;
 import com.droidlogic.app.SystemControlManager;
 import android.content.BroadcastReceiver;
 import android.content.Intent;
+import android.content.ContentUris;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
 import android.util.Log;
 import android.content.Context;
 import java.io.IOException;
 import android.content.IntentFilter;
+import android.provider.DocumentsContract;
 /**
  * @ClassName FullImageActivity
  * @Description TODO
@@ -97,6 +100,7 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
     private static final int DISMISS_PROGRESSBAR = 0;
     private static final int DISPLAY_SHOW = 1;
     private static final int DISMISS_MENU = 2;
+    private static final int NOT_DISPLAY = 3;
     private boolean mPlayPicture;
     private RelativeLayout menu = null;
     private ImagePlayer mImageplayer;
@@ -121,6 +125,7 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
     private PowerManager.WakeLock    mWakeLock;
     private String mCurrenAXIS;
     private long maxlenth  = 7340032;//gif max lenth 7MB
+    private Object obj = new Object();
     private Handler mUIHandler = new Handler() {
             @Override
             public void handleMessage(Message msg) {
@@ -149,19 +154,42 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
                         mCurPicPath = getPathByUri(mImageList.get(mSlideIndex));
                         mShowHandler.post(startPlayerRunnable);
                     }
-
                     break;
 
                 case DISMISS_MENU:
                     displayMenu(false);
-
+                    break;
+                case NOT_DISPLAY:
+                    Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+                    onShow();
                     break;
                 }
             }
         };
+    private Runnable runAndShow = new Runnable() {
+        public void run() {
+            synchronized (obj) {
+                if ((mCurPicPath != null) && (mImageplayer!= null)) {
+                    int ret = mImageplayer.setDataSource(mCurPicPath);
+                    if (ret < 0) {
+                        mUIHandler.sendEmptyMessage(NOT_DISPLAY);
+                    }
+                    else {
+                        if (mImageplayer.prepare() < 0) {
+                            mUIHandler.sendEmptyMessage(NOT_DISPLAY);
+                        }
+                        else {
+                            mImageplayer.show();
+                        }
+                    }
+                }
+            }
 
+        }
+    };
     private Runnable startPlayerRunnable = new Runnable() {
-            public void run() {
+        public void run() {
+            synchronized(obj) {
                 if ((mCurPicPath != null) && (mImageplayer != null)) {
                     //mImageplayer.setDataSource(mCurPicPath);
                     //mImageplayer.setSampleSurfaceSize(1, 1280, 720);
@@ -171,11 +199,12 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
                         FullImageActivity.this.onShow();
                     }
                     else {
-                    mImageplayer.showBuf();
+                        mImageplayer.showBuf();
+                    }
                 }
             }
-            }
-        };
+        }
+    };
 
     public final  BroadcastReceiver mUsbScanner = new BroadcastReceiver() {
         @Override
@@ -206,6 +235,7 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        PermissionUtils.verifyStoragePermissions(this);
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_MEDIA_EJECT);
         intentFilter.addDataScheme("file");
@@ -273,8 +303,11 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
 
     public String getPathByUri(Uri uri) {
         String[] proj = { MediaStore.Images.Media.DATA };
+        if ( DocumentsContract.isDocumentUri(this,uri) ) {
+            String path = getPath(this,uri);
+            return path;
+        }
         Cursor cursor = managedQuery(uri, proj, null, null, null);
-
         if (cursor != null) {
             int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
             cursor.moveToFirst();
@@ -286,23 +319,79 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
 
             return filePath;
         }
+
+    }
+    public String getPath(final Context context, final Uri uri) {
+        final boolean isKitKat = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT;
+        if (isKitKat && DocumentsContract.isDocumentUri(context, uri)) {
+            if ("com.android.externalstorage.documents".equals(uri.getAuthority())) {
+                 final String docId = DocumentsContract.getDocumentId(uri);
+                 final String[] split = docId.split(":");
+                 final String type = split[0];
+                 if ("primary".equalsIgnoreCase(type)) {
+                    return Environment.getExternalStorageDirectory() + "/" + split[1];
+                 }else {
+                    return "/storage/"+type+"/"+split[1];
+                 }
+
+            } else if ("com.android.providers.downloads.documents".equals(uri.getAuthority())) {
+                final String id = DocumentsContract.getDocumentId(uri);
+                final Uri contentUri = ContentUris.withAppendedId(Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
+                return getDataColumn(context, contentUri, null, null);
+            }else if ("com.android.providers.media.documents".equals(uri.getAuthority())) {
+                final String docId = DocumentsContract.getDocumentId(uri);
+                final String[] split = docId.split(":");
+                Log.d(TAG,"docId:"+docId);
+                Uri contentUri  = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+                final String selection = "_id=?";
+                final String[] selectionArgs = new String[]{split[1]};
+                return getDataColumn(context, contentUri, selection, selectionArgs);
+            }
+        }else if ("content".equalsIgnoreCase(uri.getScheme())) {
+            return getDataColumn(context, uri, null, null);
+        }else if ("file".equalsIgnoreCase(uri.getScheme())) {
+            return uri.getPath();
+        }
+        return null;
+    }
+    private String getDataColumn(Context context, Uri uri, String selection,String[] selectionArgs) {
+
+        Cursor cursor = null;
+        final String column = "_data";
+        final String[] projection = {
+                column
+        };
+
+        try {
+            cursor = FullImageActivity.this.getContentResolver().query(uri, projection, selection, selectionArgs,
+                    null);
+            if (cursor != null && cursor.moveToFirst()) {
+                final int index = cursor.getColumnIndexOrThrow(column);
+                return cursor.getString(index);
+            }
+        } finally {
+            if (cursor != null)
+                cursor.close();
+        }
+        return null;
+
     }
     private boolean isSupportSuchSize(String path){
-        boolean ret =true;
+        boolean ret = true;
         String endstr1 = ".gif";
         String endstr2 = ".gif?";
-        Log.d(TAG, "mCurPicPath:" + mCurPicPath);
-        if ((mCurPicPath !=null || mCurPicPath.length() >=0 ) && (mCurPicPath.endsWith(endstr1) ||mCurPicPath.endsWith(endstr2))) {
-            File f= new File(mCurPicPath);
+        if ((mCurPicPath != null && mCurPicPath.length() >= 0 ) && (mCurPicPath.endsWith(endstr1) ||mCurPicPath.endsWith(endstr2))) {
+            File f = new File(mCurPicPath);
             long lenth = f.length();
             Log.d(TAG, "this picture size is :" + lenth);
-            if (lenth >maxlenth) {
+            if (lenth > maxlenth) {
                Toast.makeText(this, "This picture size "+((new DecimalFormat("#.00")).format((double) lenth / 1048576) + "MB")+" > 7.0MB not support!", Toast.LENGTH_LONG).show();
-               ret =false;
+               ret = false;
             }
         }
         return ret;
     }
+
     private String filterPath(String filePath) {
         if ( filePath.startsWith("/storage/emulated/") ) {
             try {
@@ -433,10 +522,10 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
             mUIHandler.sendEmptyMessageDelayed(DISMISS_MENU, DISPLAY_MENU_TIME);
         }
     }
-
     @Override
-    protected void onResume() {
-        super.onResume();
+    protected void onStart() {
+        super.onStart();
+        Log.d(TAG,"onStart");
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWakeLock = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK
                 | PowerManager.ON_AFTER_RELEASE, TAG);
@@ -455,33 +544,13 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
             }
             mSystemControl.writeSysFs(VIDE_AXIS_NODE,newAxis);
         }
-        if (DEBUG) {
-            Log.d(TAG,
-                "mShowHandler==null?" + (mShowHandler == null) +
-                " startPlayerRunnable==null?" + (startPlayerRunnable == null));
-        }
-        if (mImageplayer == null) {
-            mImageplayer = new ImagePlayer(this.getApplicationContext(), this);
-        }
-        if ((mCurPicPath != null) && (mImageplayer!= null)) {
-            int ret = mImageplayer.setDataSource(mCurPicPath);
-            if (ret < 0) {
-                Toast.makeText(this, R.string.not_display, Toast.LENGTH_LONG).show();
-                onShow();
+        synchronized(obj) {
+            if (mImageplayer == null) {
+                mImageplayer = new ImagePlayer(this.getApplicationContext(), this);
             }
-            else {
-                if (mImageplayer.prepareBuf(mCurPicPath) < 0) {
-                    Toast.makeText(this, R.string.not_display, Toast.LENGTH_LONG).show();
-                    onShow();
-                }
-                else {
-                    mImageplayer.showBuf();
-                }
-            }
-
         }
 
-        //mShowHandler.post(startPlayerRunnable);
+        mShowHandler.post(runAndShow);
         mPlayLay = (LinearLayout) findViewById(R.id.lay_1);
         mRotateLLay = (LinearLayout) findViewById(R.id.lay_3);
         mRotateRlay = (LinearLayout) findViewById(R.id.lay_2);
@@ -501,27 +570,6 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
         mUIHandler.sendEmptyMessageDelayed(DISMISS_PROGRESSBAR, 1000);
     }
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-
-        if (DEBUG) {
-            Log.d(TAG, "onPause");
-        }
-        if (mSystemControl != null) {
-            mSystemControl.writeSysFs(VIDE_AXIS_NODE,mCurrenAXIS);
-        }
-        if (null != mImageplayer) {
-            if (DEBUG) {
-                Log.d(TAG, "onPause release");
-            }
-
-            mImageplayer.release();
-            mImageplayer = null;
-        }
-        mWakeLock.release();
-    }
-
      @Override
      protected void onStop() {
         super.onStop();
@@ -529,7 +577,20 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
         if (DEBUG) {
             Log.d(TAG, "onStop");
         }
-        finish();
+        if (mSystemControl != null) {
+            mSystemControl.writeSysFs(VIDE_AXIS_NODE,mCurrenAXIS);
+        }
+        synchronized(obj) {
+            if (null != mImageplayer) {
+                if (DEBUG) {
+                    Log.d(TAG, "onPause release");
+                }
+
+                mImageplayer.release();
+                mImageplayer = null;
+            }
+        }
+        mWakeLock.release();
      }
 
      @Override
@@ -621,22 +682,22 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
 
         case R.id.lay_3:
         case R.id.menu_left_rotate:
-
-            if ((mImageplayer != null)) {
-                mDegress -= 90;
-                mImageplayer.setRotate(mDegress % 360, 1);
+            synchronized(obj) {
+                if ((mImageplayer != null)) {
+                    mDegress -= 90;
+                    mImageplayer.setRotate(mDegress % 360, 1);
+                }
             }
-
             break;
 
         case R.id.lay_2:
         case R.id.menu_right_rotate:
-
-            if (mImageplayer != null) {
-                mDegress += 90;
-                mImageplayer.setRotate(mDegress % 360, 1);
+            synchronized(obj) {
+                if (mImageplayer != null) {
+                    mDegress += 90;
+                    mImageplayer.setRotate(mDegress % 360, 1);
+                }
             }
-
             break;
         }
 
@@ -671,8 +732,10 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
             if (DEBUG) {
                 Log.v(TAG, "surfaceCreated");
             }
-            if (mImageplayer != null)
-                mImageplayer.setDisplay(holder);
+            synchronized(obj) {
+                if (mImageplayer != null)
+                    mImageplayer.setDisplay(holder);
+            }
         }
 
         @Override

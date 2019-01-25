@@ -229,9 +229,11 @@ public class ImagePlayer {
         } catch (RemoteException ex) {
             Log.e(TAG, "release: ImagePlayerService is dead!:" + ex);
         } finally{
-            try {
-                mProxy.unlinkToDeath(mDeathRecipient);
-            }catch(RemoteException e) {}
+            if (mProxy != null) {
+                try {
+                    mProxy.unlinkToDeath(mDeathRecipient);
+                }catch(RemoteException e) {}
+            }
             mListener.relseased();
             mCurStatus = STATUS_RELEASE;
             return ret;
