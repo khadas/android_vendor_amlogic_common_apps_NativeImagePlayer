@@ -50,14 +50,14 @@ public class ImagePlayer {
          * @param context maybe useful someday
          * @param callback interface
          */
-        public ImagePlayer ( Context context, ImagePlayerListener listener ) {
+        public ImagePlayer (Context context, ImagePlayerListener listener) {
             mContext = context;
             mDeathRecipient = new DeathRecipient();
             Log.d(TAG,"create ImagePlayer");
             try {
                 mProxy = IImageService.getService();
                 mProxy.linkToDeath(mDeathRecipient, IMAGE_PLAYER_DEATH_COOKIE);
-            }catch (NoSuchElementException e) {
+            } catch (NoSuchElementException e) {
                 Log.e(TAG, "connectToProxy: imageplayer service not found."
                         + " Did the service fail to start?", e);
             } catch (RemoteException ex) {
@@ -210,13 +210,13 @@ public class ImagePlayer {
         int ret = REMOTE_EXCEPTION;
         try {
             if (null != mProxy) {
+                mCurStatus = STATUS_PLAYING;
                 ret = mProxy.show();
              }
         } catch (RemoteException ex) {
             Log.e(TAG, "start: ImagePlayerService is dead!:" + ex);
         }
-        mListener.onShow();
-        mCurStatus = STATUS_PLAYING;
+        //mListener.onShow();
         return ret;
     }
 
@@ -257,19 +257,20 @@ public class ImagePlayer {
         return REMOTE_EXCEPTION;
     }
 
-        public int showBuf() {
+    public int showBuf() {
         int ret = REMOTE_EXCEPTION;
+
         try {
             if (null != mProxy) {
+                mListener.onShow();
+                mCurStatus = STATUS_PLAYING;
                 return mProxy.showBuf();
              }
         } catch (RemoteException ex) {
             Log.e(TAG, "release: ImagePlayerService is dead!:" + ex);
         }
-            mListener.onShow();
-            mCurStatus = STATUS_PLAYING;
-            return ret;
-        }
+        return ret;
+    }
 
         /**
      * Sets the {@link SurfaceHolder} to use for displaying the picture
