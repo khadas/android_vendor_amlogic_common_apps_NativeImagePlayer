@@ -185,19 +185,17 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
 
     private Runnable startPlayerRunnable = new Runnable() {
         public void run() {
-            synchronized(obj) {
-                if ((mCurPicPath != null) && (mImageplayer != null)) {
-                    //mImageplayer.setDataSource(mCurPicPath);
-                    //mImageplayer.setSampleSurfaceSize(1, 1280, 720);
-                    //mImageplayer.start();
-                    if (mImageplayer.prepareBuf(mCurPicPath) < 0) {
-                        Log.e(TAG, "imageplayer prepareBuf failed");
-                        //no need to give a toast when play slide show
-                        //mUIHandler.sendEmptyMessage(NOT_DISPLAY);
-                    } else {
-                        Log.d(TAG, "imagePlayer start show " + mCurPicPath);
-                        mImageplayer.showBuf();
-                    }
+            if ((mCurPicPath != null) && (mImageplayer != null)) {
+                //mImageplayer.setDataSource(mCurPicPath);
+                //mImageplayer.setSampleSurfaceSize(1, 1280, 720);
+                //mImageplayer.start();
+                if (mImageplayer.prepareBuf(mCurPicPath) < 0) {
+                    Log.e(TAG, "imageplayer prepareBuf failed");
+                    //no need to give a toast when play slide show
+                    //mUIHandler.sendEmptyMessage(NOT_DISPLAY);
+                } else {
+                    Log.d(TAG, "imagePlayer start show " + mCurPicPath);
+                    mImageplayer.showBuf();
                 }
             }
         }
@@ -261,17 +259,9 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
             return;
         }
 
-
         mShowHandlerThread = new HandlerThread("AmlogicPlayer");
         mShowHandlerThread.start();
         mShowHandler = new Handler(mShowHandlerThread.getLooper());
-
-        synchronized(obj) {
-            if (mImageplayer == null) {
-                mImageplayer = new ImagePlayer(getApplicationContext(), this);
-            }
-        }
-
     }
 
     public String getPathByUri(Uri uri) {
@@ -565,6 +555,10 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
         super.onStart();
         Log.d(TAG,"onStart");
 
+        if (mImageplayer == null) {
+            mImageplayer = new ImagePlayer(getApplicationContext(), this);
+        }
+
         writeAxisNode();
 
         mShowHandler.post(runAndShow);
@@ -576,6 +570,14 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
      protected void onStop() {
         super.onStop();
         Log.d(TAG, "onStop");
+        if (mUIHandler != null) {
+            mUIHandler.removeMessages(DISPLAY_SHOW);
+        }
+
+        if (null != mImageplayer) {
+            mImageplayer.release();
+            mImageplayer = null;
+        }
 
         if (mSystemControl != null) {
             mSystemControl.writeSysFs(VIDE_AXIS_NODE,mCurrenAXIS);
@@ -591,19 +593,8 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
 
         unregisterReceiver(mUsbScanner);
 
-        if (mUIHandler != null) {
-            mUIHandler.removeMessages(DISPLAY_SHOW);
-        }
-
         if (mShowHandlerThread != null) {
             mShowHandlerThread.quit();
-        }
-
-        synchronized(obj) {
-            if (null != mImageplayer) {
-                mImageplayer.release();
-                mImageplayer = null;
-            }
         }
      }
 
@@ -658,7 +649,6 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
         switch (v.getId()) {
         case R.id.lay_1:
         case R.id.menu_picplay:
-
             if (!mPlayPicture) {
                 Log.d(TAG, "start slide show");
                 mPlayLay.setBackgroundResource(R.drawable.highlight);
@@ -667,26 +657,21 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
             } else {
                 resetShowState();
             }
-
             break;
 
         case R.id.lay_3:
         case R.id.menu_left_rotate:
-            synchronized(obj) {
-                if ((mImageplayer != null)) {
-                    mDegress -= 90;
-                    mImageplayer.setRotate(mDegress % 360, 1);
-                }
+            if ((mImageplayer != null)) {
+                mDegress -= 90;
+                mImageplayer.setRotate(mDegress % 360, 1);
             }
             break;
 
         case R.id.lay_2:
         case R.id.menu_right_rotate:
-            synchronized(obj) {
-                if (mImageplayer != null) {
-                    mDegress += 90;
-                    mImageplayer.setRotate(mDegress % 360, 1);
-                }
+            if (mImageplayer != null) {
+                mDegress += 90;
+                mImageplayer.setRotate(mDegress % 360, 1);
             }
             break;
         }
@@ -722,10 +707,9 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
             if (DEBUG) {
                 Log.v(TAG, "surfaceCreated");
             }
-            synchronized(obj) {
-                if (mImageplayer != null)
-                    mImageplayer.setDisplay(holder);
-            }
+
+            if (mImageplayer != null)
+                mImageplayer.setDisplay(holder);
         }
 
         @Override
