@@ -88,7 +88,7 @@ public class ImagePlayer {
     }
     public int setDataSource(String path) {
         if (path.startsWith("http://") || path.startsWith("https://"))
-            return setDataSourceURL(path);//it is a network picture
+            return _setDataSource(path);//it is a network picture
         if (!path.startsWith("file://")) {
             path = "file://" + path;
         }

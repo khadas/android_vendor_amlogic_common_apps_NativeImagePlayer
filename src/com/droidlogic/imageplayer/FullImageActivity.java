@@ -254,6 +254,7 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
         }
 
         mCurPicPath = getPathByUri(uri);
+        Log.d(TAG, "onCreate mCurPicPath " + mCurPicPath);
         if (!isSupportSuchSize(mCurPicPath)) {
             finish();
             return;
@@ -265,6 +266,10 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
     }
 
     public String getPathByUri(Uri uri) {
+        String uriStr = uri.toString();
+        if (uriStr.startsWith("http") || uriStr.startsWith("https")) {
+            return uriStr;
+        }
         String[] proj = { MediaStore.Images.Media.DATA };
         if (DocumentsContract.isDocumentUri(this,uri)) {
             String path = getPath(this,uri);
