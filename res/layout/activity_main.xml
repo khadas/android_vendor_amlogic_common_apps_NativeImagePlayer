@@ -51,34 +51,6 @@
             android:text="@string/menu_title"
             android:textColor="#FFFFFFFF" />
 
-        <LinearLayout
-            android:id="@+id/lay_1"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_above="@+id/line1"
-            android:focusableInTouchMode="true"
-            android:background="@drawable/menu_nofocus"
-            android:layout_alignParentLeft="true"
-            android:gravity="center"
-            android:clickable="true"
-            android:focusable="true"
-            android:orientation="horizontal" >
-
-            <ImageButton
-                android:id="@+id/menu_picplay"
-                android:focusable="false"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/picplay" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/slide_show"
-                android:focusable="false"
-                android:textColor="#FFFFFFFF" />
-        </LinearLayout>
-
         <View
             android:id="@+id/line1"
             android:layout_width="130dp"

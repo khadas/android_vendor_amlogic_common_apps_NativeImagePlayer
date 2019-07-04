@@ -121,13 +121,11 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
     private int mSlideIndex;
     private HandlerThread mShowHandlerThread;
     private Handler mShowHandler;
-    private ImageButton mPlayBtn;
     private ImageButton mRotateL;
     private ImageButton mRotateR;
     private int mDegress;
     private ArrayList<Uri> mImageList = new ArrayList<Uri>();
     private ArrayList<String> mPathList = new ArrayList<String>();
-    private LinearLayout mPlayLay;
     private LinearLayout mRotateLLay;
     private LinearLayout mRotateRlay;
     private SystemControlManager mSystemControl;
@@ -442,21 +440,16 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
     }
 
     private void initViews() {
-        mPlayLay = (LinearLayout) findViewById(R.id.lay_1);
         mRotateLLay = (LinearLayout) findViewById(R.id.lay_3);
         mRotateRlay = (LinearLayout) findViewById(R.id.lay_2);
-        mPlayBtn = (ImageButton) findViewById(R.id.menu_picplay);
         mRotateL = (ImageButton) findViewById(R.id.menu_left_rotate);
         mRotateR = (ImageButton) findViewById(R.id.menu_right_rotate);
         mRotateRlay.setOnClickListener(this);
         mRotateLLay.setOnClickListener(this);
-        mPlayLay.setOnClickListener(this);
-        mPlayBtn.setOnClickListener(this);
         mRotateL.setOnClickListener(this);
         mRotateR.setOnClickListener(this);
         mRotateRlay.setOnFocusChangeListener(this);
         mRotateLLay.setOnFocusChangeListener(this);
-        mPlayLay.setOnFocusChangeListener(this);
 
         mSurfaceView = (SurfaceView) findViewById(R.id.surfaceview_show_picture);
         mSurfaceView.getHolder().addCallback(new SurfaceCallback());
@@ -541,16 +534,14 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
             if (DEBUG) {
                 Log.d(TAG, "displayMenu set menu visible");
             }
-
+            mMenu.requestFocus();
             mMenu.startAnimation(mOutAnimation);
             mMenu.setVisibility(View.VISIBLE);
-            mPlayLay.requestFocus();
             mUIHandler.sendEmptyMessageDelayed(DISMISS_MENU, DISPLAY_MENU_TIME);
         }
     }
 
     private void resetShowState() {
-        mPlayLay.setBackgroundResource(R.drawable.menu_nofocus);
         mPlayPicture = false;
         cancelFindPicList();
     }
@@ -652,33 +643,21 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
-        case R.id.lay_1:
-        case R.id.menu_picplay:
-            if (!mPlayPicture) {
-                Log.d(TAG, "start slide show");
-                mPlayLay.setBackgroundResource(R.drawable.highlight);
-                mPlayPicture = true;
-                findPicList();
-            } else {
-                resetShowState();
-            }
-            break;
+            case R.id.lay_3:
+            case R.id.menu_left_rotate:
+                if ((mImageplayer != null)) {
+                    mDegress -= 90;
+                    mImageplayer.setRotate(mDegress % 360, 1);
+                }
+                break;
 
-        case R.id.lay_3:
-        case R.id.menu_left_rotate:
-            if ((mImageplayer != null)) {
-                mDegress -= 90;
-                mImageplayer.setRotate(mDegress % 360, 1);
-            }
-            break;
-
-        case R.id.lay_2:
-        case R.id.menu_right_rotate:
-            if (mImageplayer != null) {
-                mDegress += 90;
-                mImageplayer.setRotate(mDegress % 360, 1);
-            }
-            break;
+            case R.id.lay_2:
+            case R.id.menu_right_rotate:
+                if (mImageplayer != null) {
+                    mDegress += 90;
+                    mImageplayer.setRotate(mDegress % 360, 1);
+                }
+                break;
         }
 
         mUIHandler.removeMessages(DISMISS_MENU);
