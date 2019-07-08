@@ -93,7 +93,7 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
     private static final int DISPLAY_PIC_BEGIN = 1000;
     private static final int DISPLAY_PROGRESSBAR = 1000;
 
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     public static final String ACTION_REVIEW = "com.android.camera.action.REVIEW";
     public static final String KEY_GET_CONTENT = "get-content";
@@ -440,10 +440,11 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
     }
 
     private void initViews() {
-        mRotateLLay = (LinearLayout) findViewById(R.id.lay_3);
-        mRotateRlay = (LinearLayout) findViewById(R.id.lay_2);
-        mRotateL = (ImageButton) findViewById(R.id.menu_left_rotate);
-        mRotateR = (ImageButton) findViewById(R.id.menu_right_rotate);
+        mRotateLLay = (LinearLayout)findViewById(R.id.lay_3);
+        mRotateRlay = (LinearLayout)findViewById(R.id.lay_2);
+        mRotateL = (ImageButton)findViewById(R.id.menu_left_rotate);
+        mRotateR = (ImageButton)findViewById(R.id.menu_right_rotate);
+
         mRotateRlay.setOnClickListener(this);
         mRotateLLay.setOnClickListener(this);
         mRotateL.setOnClickListener(this);
@@ -459,7 +460,6 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
         mSurfaceView.getHolder().setFormat(258);
         mSurfaceView.setFocusable(true);
         mSurfaceView.setFocusableInTouchMode (true);
-        mSurfaceView.requestFocus();
 
         mMenu = (RelativeLayout) findViewById(R.id.menu_layout);
         mMenu.setVisibility(View.GONE);
@@ -534,9 +534,10 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
             if (DEBUG) {
                 Log.d(TAG, "displayMenu set menu visible");
             }
-            mMenu.requestFocus();
+            mRotateRlay.requestFocus();
             mMenu.startAnimation(mOutAnimation);
             mMenu.setVisibility(View.VISIBLE);
+
             mUIHandler.sendEmptyMessageDelayed(DISMISS_MENU, DISPLAY_MENU_TIME);
         }
     }
