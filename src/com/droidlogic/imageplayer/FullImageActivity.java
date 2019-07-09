@@ -500,10 +500,10 @@ public class FullImageActivity extends Activity implements ImagePlayer.ImagePlay
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (DEBUG) {
-            Log.d(TAG, "onKeyDown:" + keyCode);
+            Log.d(TAG, "onKeyDown: " + keyCode);
         }
 
-        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+        if (event.getRepeatCount() == 0 && (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
             if (mMenu.getVisibility() == View.VISIBLE) {
                 mUIHandler.removeMessages(DISMISS_MENU);
                 mUIHandler.sendEmptyMessage(DISMISS_MENU);
