@@ -30,43 +30,42 @@ import android.view.SurfaceHolder;
 import android.util.Log;
 import java.util.NoSuchElementException;
 import vendor.amlogic.hardware.imageserver.V1_0.IImageService;
-public class ImagePlayer {
-        private static final String TAG = "ImagePlayer";
-        public static final int REMOTE_EXCEPTION = -0xffff;
-        private static final int IMAGE_PLAYER_DEATH_COOKIE       = 1000;
-        public static final int STATUS_UNDEFINE = -1;
-        public static final int STATUS_PRAPARE = 0;
-        public static final int STATUS_PLAYING = 1;
-        public static final int STATUS_RELEASE = 2;
-        private ImagePlayerListener mListener;
-        private IImageService mProxy;
-        private int mCurStatus;
-        private Context mContext;
-        private DeathRecipient mDeathRecipient;
 
-        /**
-         * Method to create a ImagePlayer,use {@link #init()} function to init image_player_service
-         *
-         * @param context maybe useful someday
-         * @param callback interface
-         */
-        public ImagePlayer (Context context, ImagePlayerListener listener) {
-            mContext = context;
-            mDeathRecipient = new DeathRecipient();
-            Log.d(TAG,"create ImagePlayer");
-            try {
-                mProxy = IImageService.getService();
-                mProxy.linkToDeath(mDeathRecipient, IMAGE_PLAYER_DEATH_COOKIE);
-            } catch (NoSuchElementException e) {
-                Log.e(TAG, "connectToProxy: imageplayer service not found."
-                        + " Did the service fail to start?", e);
-            } catch (RemoteException ex) {
-                Log.e(TAG, "image player getService faiil:" + ex);
-            }
-            init();
-            mListener = listener;
-            mCurStatus = STATUS_UNDEFINE;
+
+public class ImagePlayer {
+    private static final String TAG = "ImagePlayer";
+    public static final int REMOTE_EXCEPTION = -0xffff;
+    private static final int IMAGE_PLAYER_DEATH_COOKIE       = 1000;
+    public static final int STATUS_UNDEFINE = -1;
+    public static final int STATUS_PRAPARE = 0;
+    public static final int STATUS_PLAYING = 1;
+    public static final int STATUS_RELEASE = 2;
+    private ImagePlayerListener mListener;
+    private IImageService mProxy;
+    private int mCurStatus;
+    private Context mContext;
+    private DeathRecipient mDeathRecipient;
+
+    /**
+     * Method to create a ImagePlayer,use {@link #init()} function to init image_player_service
+     *
+     * @param context maybe useful someday
+     * @param callback interface
+     */
+    public ImagePlayer (Context context, ImagePlayerListener listener) {
+        mContext = context;
+        mDeathRecipient = new DeathRecipient();
+        Log.d(TAG,"create ImagePlayer");
+        try {
+            mProxy = IImageService.getService();
+            mProxy.linkToDeath(mDeathRecipient, IMAGE_PLAYER_DEATH_COOKIE);
+        } catch (Exception ex) {
+            Log.e(TAG, "image player getService fail:" + ex);
         }
+        init();
+        mListener = listener;
+        mCurStatus = STATUS_UNDEFINE;
+    }
 
     private int init() {
         try {
@@ -76,16 +75,9 @@ public class ImagePlayer {
         } catch (RemoteException ex) {
             Log.e(TAG, "init: ImagePlayerService is dead!:" + ex);
         }
-        Log.d(TAG,"image init REMOTE_EXCEPTION");
         return REMOTE_EXCEPTION;
     }
 
-    private IBinder getHttpServiceBinder(String url) {
-        return (new android.media.MediaHTTPService(null)).asBinder();
-    }
-    public int setDataSourceURL(String url) {
-        return REMOTE_EXCEPTION;
-    }
     public int setDataSource(String path) {
         if (path.startsWith("http://") || path.startsWith("https://"))
             return _setDataSource(path);//it is a network picture
@@ -94,6 +86,7 @@ public class ImagePlayer {
         }
         return _setDataSource(path);
     }
+
     private int _setDataSource(String path) {
         try {
             if (null != mProxy) {
@@ -104,6 +97,7 @@ public class ImagePlayer {
         }
         return REMOTE_EXCEPTION;
     }
+
     public int setSampleSurfaceSize(int sampleSize, int surfaceW, int surfaceH) {
         try {
             if (null != mProxy) {
@@ -114,6 +108,7 @@ public class ImagePlayer {
         }
         return REMOTE_EXCEPTION;
     }
+
     public int setRotate(float degrees, int autoCrop) {
         try {
             if (null != mProxy) {
@@ -124,6 +119,7 @@ public class ImagePlayer {
         }
         return REMOTE_EXCEPTION;
     }
+
     public int setScale(float sx, float sy, int autoCrop) {
         try {
             if (null != mProxy) {
@@ -134,85 +130,91 @@ public class ImagePlayer {
         }
         return REMOTE_EXCEPTION;
     }
+
     public int setHWScale(float sc) {
         try {
             if (null != mProxy) {
                 return mProxy.setHWScale(sc);
-             }
+            }
         } catch (RemoteException ex) {
             Log.e(TAG, "setHWScale: ImagePlayerService is dead!:" + ex);
         }
         return REMOTE_EXCEPTION;
     }
+
     public int setTranslate (float tx, float ty) {
         try {
             if (null != mProxy) {
                 return mProxy.setTranslate(tx,ty);
-             }
+            }
         } catch (RemoteException ex) {
             Log.e(TAG, "setTranslate: ImagePlayerService is dead!:" + ex);
         }
         return REMOTE_EXCEPTION;
     }
+
     public int setRotateScale(float degrees, float sx, float sy, int autoCrop) {
         try {
             if (null != mProxy) {
                 return mProxy.setRotateScale(degrees,sx,sy,autoCrop);
-             }
+            }
         } catch (RemoteException ex) {
             Log.e(TAG, "setRotateScale: ImagePlayerService is dead!:" + ex);
         }
         return REMOTE_EXCEPTION;
     }
+
     public int setCropRect(int cropX, int cropY, int cropWidth, int cropHeight) {
         try {
             if (null != mProxy) {
                 return mProxy.setCropRect(cropX,cropY,cropWidth,cropHeight);
-             }
+            }
         } catch (RemoteException ex) {
             Log.e(TAG, "setCropRect: ImagePlayerService is dead!:" + ex);
         }
         return REMOTE_EXCEPTION;
     }
-        public int start() {
+
+    public int start() {
         int ret = REMOTE_EXCEPTION;
         try {
             if (null != mProxy) {
                 ret = mProxy.start();
-             }
+            }
         } catch (RemoteException ex) {
             Log.e(TAG, "start: ImagePlayerService is dead!:" + ex);
         }
-            mCurStatus = STATUS_PLAYING;
-            return ret;
-        }
+        mCurStatus = STATUS_PLAYING;
+        return ret;
+    }
 
-        /**
-         * Prepares the ImagePlayer buffer for the picture.
-         *
-         * After setting the datasource and the display surface, you need to
-         * call prepare() to prepare buffer for the show.
-         *
-         */
-        public int prepare() {
+    /**
+     * Prepares the ImagePlayer buffer for the picture.
+     *
+     * After setting the datasource and the display surface, you need to
+     * call prepare() to prepare buffer for the show.
+     *
+     */
+    public int prepare() {
         int ret = REMOTE_EXCEPTION;
          try {
             if (null != mProxy) {
                 ret = mProxy.prepare();
-             }
+            }
         } catch (RemoteException ex) {
             Log.e(TAG, "start: ImagePlayerService is dead!:" + ex);
         }
-            mCurStatus = STATUS_PRAPARE;
-            return ret;
+        mCurStatus = STATUS_PRAPARE;
+        return ret;
     }
+
     public int show() {
         int ret = REMOTE_EXCEPTION;
         try {
             if (null != mProxy) {
                 mCurStatus = STATUS_PLAYING;
                 ret = mProxy.show();
-             }
+            }
         } catch (RemoteException ex) {
             Log.e(TAG, "start: ImagePlayerService is dead!:" + ex);
         }
@@ -220,25 +222,22 @@ public class ImagePlayer {
         return ret;
     }
 
-        public int release() {
+    public int release() {
         int ret = REMOTE_EXCEPTION;
         try {
             if (null != mProxy) {
                 ret = mProxy.release();
-             }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "release: ImagePlayerService is dead!:" + ex);
-        } finally{
-            if (mProxy != null) {
-                try {
-                    mProxy.unlinkToDeath(mDeathRecipient);
-                }catch(RemoteException e) {}
+                mProxy.unlinkToDeath(mDeathRecipient);
+                mListener.relseased();
+                mCurStatus = STATUS_RELEASE;
+                return ret;
             }
-            mListener.relseased();
-            mCurStatus = STATUS_RELEASE;
-            return ret;
+        } catch (Exception ex) {
+            Log.e(TAG, "release fails:" + ex);
         }
+        return ret;
     }
+
     public int prepareBuf(String path) {
         int ret =  _prepareBuf("file://" + path);
         mCurStatus = STATUS_PRAPARE;
@@ -249,7 +248,7 @@ public class ImagePlayer {
         try {
             if (null != mProxy) {
                 return mProxy.prepareBuf(path);
-             }
+            }
         } catch (RemoteException ex) {
             Log.e(TAG, "prepareBuf: ImagePlayerService is dead!:" + ex);
         }
@@ -265,14 +264,14 @@ public class ImagePlayer {
                 mListener.onShow();
                 mCurStatus = STATUS_PLAYING;
                 return mProxy.showBuf();
-             }
+            }
         } catch (RemoteException ex) {
             Log.e(TAG, "release: ImagePlayerService is dead!:" + ex);
         }
         return ret;
     }
 
-        /**
+    /**
      * Sets the {@link SurfaceHolder} to use for displaying the picture
      * that show in video layer
      *
@@ -282,12 +281,13 @@ public class ImagePlayer {
     public void setDisplay(SurfaceHolder sh) {
         SurfaceOverlay.setDisplay(sh);
     }
+
     /**
     * this function is for UI switch
     */
     public int getRunningStatus() {
         return mCurStatus;
-        }
+    }
 
     /**
     * Interface definition for a callback to be invoked when the display showing.
