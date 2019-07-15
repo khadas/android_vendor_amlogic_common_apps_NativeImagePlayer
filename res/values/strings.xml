@@ -23,4 +23,5 @@
     <string name="left_rotation">Left Rotation</string>
     <string name="right_rotation">Right Rotation</string>
     <string name="not_display">"The picture cannot display"</string>
+    <string name="usb_eject">"Usb media eject, quit"</string>
 </resources>

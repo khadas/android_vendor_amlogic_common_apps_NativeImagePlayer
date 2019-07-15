@@ -1,24 +1,23 @@
 /******************************************************************
-*
-*Copyright (C) 2012  Amlogic, Inc.
-*
-*Licensed under the Apache License, Version 2.0 (the "License");
-*you may not use this file except in compliance with the License.
-*You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-*Unless required by applicable law or agreed to in writing, software
-*distributed under the License is distributed on an "AS IS" BASIS,
-*WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-*See the License for the specific language governing permissions and
-*limitations under the License.
-******************************************************************/
+ *
+ *Copyright (C) 2012  Amlogic, Inc.
+ *
+ *Licensed under the Apache License, Version 2.0 (the "License");
+ *you may not use this file except in compliance with the License.
+ *You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *Unless required by applicable law or agreed to in writing, software
+ *distributed under the License is distributed on an "AS IS" BASIS,
+ *WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *See the License for the specific language governing permissions and
+ *limitations under the License.
+ ******************************************************************/
 package com.droidlogic.imageplayer;
 
 import android.content.Context;
 import android.content.Intent;
-
 import android.util.Log;
 
 
@@ -48,7 +47,7 @@ public class MediaUtil {
     public static final int INCLUDE_IMAGE = 1;
     public static final int INCLUDE_LOCAL_ONLY = 4;
     public static final int INCLUDE_LOCAL_IMAGE_ONLY = INCLUDE_LOCAL_ONLY |
-        INCLUDE_IMAGE;
+            INCLUDE_IMAGE;
     private static final String TAG = "MediaUtil";
 
     public static int determineTypeBits(Context context, Intent intent) {
@@ -61,10 +60,8 @@ public class MediaUtil {
 
         Log.d(TAG, "determineTypeBits get type from type:" + type);
 
-        if (ApiHelper.HAS_INTENT_EXTRA_LOCAL_ONLY) {
-            if (intent.getBooleanExtra(Intent.EXTRA_LOCAL_ONLY, false)) {
-                typeBits |= INCLUDE_LOCAL_ONLY;
-            }
+        if (intent.getBooleanExtra(Intent.EXTRA_LOCAL_ONLY, false)) {
+            typeBits |= INCLUDE_LOCAL_ONLY;
         }
 
         return typeBits;
