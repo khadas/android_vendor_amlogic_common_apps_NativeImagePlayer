@@ -418,10 +418,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             mImageplayer.release();
             mImageplayer = null;
         }
-
-        if (mSystemControl != null) {
-            mSystemControl.writeSysFs(VIDE_AXIS_NODE, mCurrenAXIS);
-        }
     }
 
     @Override
