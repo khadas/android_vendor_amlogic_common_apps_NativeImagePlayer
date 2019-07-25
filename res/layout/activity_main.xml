@@ -36,13 +36,13 @@
         android:id="@+id/menu_layout"
         android:background="@drawable/box_bk"
         android:layout_width="match_parent"
-        android:layout_height="fill_parent"
+        android:layout_height="match_parent"
         android:gravity="left"
         android:paddingLeft="60dp" >
 
         <Button
             android:id="@+id/menu_nav"
-            android:layout_width="wrap_content"
+            android:layout_width="140dp"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
             android:layout_marginTop="100dp"
@@ -53,77 +53,142 @@
 
         <View
             android:id="@+id/line1"
-            android:layout_width="130dp"
+            android:layout_width="140dp"
             android:layout_height="1dp"
-            android:focusable="false"
-            android:layout_above="@+id/lay_2"
-            android:layout_marginBottom="20dp"
+            android:layout_above="@+id/ll_rotate_r"
+            android:layout_marginBottom="10dp"
             android:background="#9fffffff" />
 
         <LinearLayout
-            android:id="@+id/lay_2"
-            android:layout_width="wrap_content"
+            android:id="@+id/ll_rotate_r"
+            android:layout_width="140dp"
             android:layout_height="wrap_content"
             android:clickable="true"
             android:focusable="true"
             android:focusableInTouchMode="true"
-            android:gravity="center"
+            android:gravity="center_vertical"
             android:background="@drawable/menu_heighlight"
             android:layout_above="@+id/line2" >
 
-            <ImageButton
+            <ImageView
                 android:id="@+id/menu_right_rotate"
-                android:layout_width="wrap_content"
-                android:focusable="false"
-                android:layout_height="wrap_content"
-                android:background="@drawable/right_rotation_focus"
+                android:layout_width="60dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="center"
                 android:src="@drawable/rotation_r" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:focusable="false"
                 android:text="@string/right_rotation"
                 android:textColor="#ffffffff" />
         </LinearLayout>
 
         <View
             android:id="@+id/line2"
-            android:layout_width="130dp"
+            android:layout_width="140dp"
             android:layout_height="1dp"
-            android:layout_above="@+id/lay_3"
-            android:layout_marginBottom="20dp"
+            android:layout_above="@+id/ll_rotate_l"
+            android:layout_marginBottom="10dp"
             android:background="#90ffffff" />
 
         <LinearLayout
-            android:id="@+id/lay_3"
-            android:layout_width="wrap_content"
+            android:id="@+id/ll_rotate_l"
+            android:layout_width="140dp"
+            android:layout_height="wrap_content"
             android:clickable="true"
             android:focusable="true"
             android:focusableInTouchMode="true"
-            android:gravity="center"
+            android:gravity="center_vertical"
             android:background="@drawable/menu_heighlight"
-            android:layout_height="wrap_content"
             android:layout_above="@+id/line3" >
 
-            <ImageButton
+            <ImageView
                 android:id="@+id/menu_left_rotate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:focusable="false"
-                android:background="@drawable/left_rotation" />
+                android:layout_width="60dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="center"
+                android:src="@drawable/left_rotation" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:focusable="false"
                 android:text="@string/left_rotation"
                 android:textColor="#FFFFFFFF" />
         </LinearLayout>
 
         <View
             android:id="@+id/line3"
-            android:layout_width="130dp"
+            android:layout_width="140dp"
+            android:layout_height="1dp"
+            android:layout_above="@+id/ll_scale_up"
+            android:layout_marginBottom="10dp"
+            android:background="#90ffffff" />
+
+        <LinearLayout
+            android:id="@+id/ll_scale_up"
+            android:layout_width="140dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:gravity="center_vertical"
+            android:background="@drawable/menu_heighlight"
+            android:layout_height="wrap_content"
+            android:layout_above="@+id/line4" >
+
+            <ImageView
+                android:id="@+id/iv_scale_up"
+                android:layout_width="60dp"
+                android:layout_height="match_parent"
+                android:layout_alignStart="@+id/ll_scale_up"
+                android:layout_alignBottom="@+id/ll_scale_up"
+                android:layout_gravity="center"
+                android:src="@drawable/scale_up" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:focusable="false"
+                android:text="@string/scale_up"
+                android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <View
+            android:id="@+id/line4"
+            android:layout_width="140dp"
+            android:layout_height="1dp"
+            android:layout_above="@+id/ll_scale_down"
+            android:layout_marginBottom="10dp"
+            android:background="#90ffffff" />
+
+        <LinearLayout
+            android:id="@+id/ll_scale_down"
+            android:layout_width="140dp"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:gravity="center_vertical"
+            android:background="@drawable/menu_heighlight"
+            android:layout_above="@+id/line5" >
+
+            <ImageView
+                android:id="@+id/iv_scale_down"
+                android:layout_width="60dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="center"
+                android:src="@drawable/scale_down" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/scale_down"
+                android:textColor="#FFFFFFFF" />
+        </LinearLayout>
+
+        <View
+            android:id="@+id/line5"
+            android:layout_width="140dp"
             android:layout_height="1dp"
             android:layout_alignParentBottom="true"
             android:layout_marginBottom="80dp"

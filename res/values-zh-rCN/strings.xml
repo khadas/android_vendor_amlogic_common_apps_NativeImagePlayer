@@ -17,9 +17,12 @@
     <string name="action_settings">"设置"</string>
     <string name="no_such_item">"此类型不支持"</string>
     <string name="menu_title">"菜单"</string>
-    <string name="slide_show">"幻灯片"</string>
     <string name="left_rotation">"左旋转"</string>
     <string name="right_rotation">"右旋转"</string>
     <string name="not_display">"该图片无法显示"</string>
     <string name="usb_eject">"Usb多媒体设备拔出，退出"</string>
+    <string name="scale_up">"放大"</string>
+    <string name="scale_down">"缩小"</string>
+    <string name="scale_to_maximized">"已经最大化"</string>
+    <string name="scale_to_minimized">"已经最小化"</string>
 </resources>

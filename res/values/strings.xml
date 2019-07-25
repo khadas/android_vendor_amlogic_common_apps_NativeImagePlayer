@@ -19,9 +19,12 @@
     <string name="action_settings">Settings</string>
     <string name="no_such_item">No such Item</string>
     <string name="menu_title">Menu</string>
-    <string name="slide_show">Slide Show</string>
     <string name="left_rotation">Left Rotation</string>
     <string name="right_rotation">Right Rotation</string>
     <string name="not_display">"The picture cannot display"</string>
     <string name="usb_eject">"Usb media eject, quit"</string>
+    <string name="scale_up">"Scale up"</string>
+    <string name="scale_down">"Scale down"</string>
+    <string name="scale_to_maximized">"Has been maximized"</string>
+    <string name="scale_to_minimized">"Has been minimized"</string>
 </resources>

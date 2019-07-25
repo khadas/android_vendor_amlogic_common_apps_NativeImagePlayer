@@ -80,6 +80,16 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private static final int NOT_DISPLAY = 2;
     private static final int ROTATE_L = 3;
     private static final int ROTATE_R = 4;
+    private static final int SCALE_UP = 5;
+    private static final int SCALE_DOWN = 6;
+
+    private static final float SCALE_RATIO = 0.2f;
+    private static final float SCALE_ORI = 1.0f;
+    private static final float SCALE_MAX = 2.0f;
+    private static final float SCALE_MIN = 0.2f;
+    private static final float SCALE_ERR = 0.01f;
+
+    private static final float ROTATION_DEGREE = 90;
 
     private static final long maxlenth = 7340032;//gif max lenth 7MB
 
@@ -93,6 +103,11 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private ProgressBar mLoadingProgress;
     private LinearLayout mRotateLLay;
     private LinearLayout mRotateRlay;
+    private LinearLayout mScaleUp;
+    private LinearLayout mScaleDown;
+
+    private float mScale = SCALE_ORI;
+
     private String mCurPicPath;
 
     private ArrayList<Uri> mImageList = new ArrayList<Uri>();
@@ -121,10 +136,16 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
                     Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
                     break;
                 case ROTATE_R:
-                    rotateRight();
+                    rotate(true);
                     break;
                 case ROTATE_L:
-                    rotateLeft();
+                    rotate(false);
+                    break;
+                case SCALE_UP:
+                    scale(true);
+                    break;
+                case SCALE_DOWN:
+                    scale(false);
                     break;
             }
         }
@@ -310,12 +331,20 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     }
 
     private void initViews() {
-        mRotateLLay = (LinearLayout) findViewById(R.id.lay_3);
-        mRotateRlay = (LinearLayout) findViewById(R.id.lay_2);
+        mRotateLLay = (LinearLayout) findViewById(R.id.ll_rotate_r);
+        mRotateRlay = (LinearLayout) findViewById(R.id.ll_rotate_l);
+        mScaleUp = (LinearLayout) findViewById(R.id.ll_scale_up);
+        mScaleDown = (LinearLayout) findViewById(R.id.ll_scale_down);
+
         mRotateRlay.setOnClickListener(this);
         mRotateLLay.setOnClickListener(this);
+        mScaleUp.setOnClickListener(this);
+        mScaleDown.setOnClickListener(this);
+
         mRotateRlay.setOnFocusChangeListener(this);
         mRotateLLay.setOnFocusChangeListener(this);
+        mScaleUp.setOnFocusChangeListener(this);
+        mScaleDown.setOnFocusChangeListener(this);
 
         mSurfaceView = (SurfaceView) findViewById(R.id.surfaceview_show_picture);
         mSurfaceView.getHolder().addCallback(new SurfaceCallback());
@@ -378,17 +407,61 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         }
     }
 
-    private void rotateLeft() {
-        if ((mImageplayer != null)) {
-            mDegress -= 90;
+    private void rotate(boolean right) {
+        if (null == mImageplayer) {
+            Log.e(TAG, "rotateRight imageplayer null");
+            return;
+        }
+
+        if (right) {
+            mDegress += ROTATION_DEGREE;
+        } else {
+            mDegress -= ROTATION_DEGREE;
+        }
+        Log.d(TAG, "rotate degree " + mDegress);
+        if (mScale != SCALE_ORI) {
+            Log.d(TAG, "rotate has scale with " + mScale);
+            mImageplayer.setRotateScale(mDegress % 360, mScale, mScale, 0);
+        } else {
             mImageplayer.setRotate(mDegress % 360, 1);
         }
     }
 
-    private void rotateRight() {
+    private void scale(boolean scaleUp) {
+        if (null == mImageplayer) {
+            Log.e(TAG, "scale imageplayer null");
+            return;
+        }
+
+        if (scaleUp) {
+            mScale += SCALE_RATIO;
+        } else {
+            mScale -= SCALE_RATIO;
+        }
+        Log.d(TAG, "scale " + mScale);
+
+        // value like 1.999999 could continue to be enlarged or else
+        if ((SCALE_MAX - SCALE_ERR) <= mScale) {
+            Toast.makeText(this, R.string.scale_to_maximized, Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "scale is max " + mScale);
+            mScale = SCALE_MAX - SCALE_RATIO;
+            return;
+        }
+        if ((SCALE_MIN + SCALE_ERR) >= mScale) {
+            Toast.makeText(this, R.string.scale_to_minimized, Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "scale is min " + mScale);
+            mScale = SCALE_MIN + SCALE_RATIO;
+            return;
+        }
+
         if (mImageplayer != null) {
-            mDegress += 90;
-            mImageplayer.setRotate(mDegress % 360, 1);
+            if (mDegress % 360 != 0) {
+                Log.d(TAG, "scale has rotation with " + mDegress);
+                mImageplayer.setRotateScale(mDegress % 360, mScale, mScale, 0);
+            } else {
+                mImageplayer.setScale(mScale, mScale, 0);
+            }
+
         }
     }
 
@@ -434,13 +507,21 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
-            case R.id.lay_2:
+            case R.id.ll_rotate_r:
                 mUIHandler.removeMessages(ROTATE_R);
                 mUIHandler.sendEmptyMessage(ROTATE_R);
                 break;
-            case R.id.lay_3:
+            case R.id.ll_rotate_l:
                 mUIHandler.removeMessages(ROTATE_L);
                 mUIHandler.sendEmptyMessage(ROTATE_L);
+                break;
+            case R.id.ll_scale_up:
+                mUIHandler.removeMessages(SCALE_UP);
+                mUIHandler.sendEmptyMessage(SCALE_UP);
+                break;
+            case R.id.ll_scale_down:
+                mUIHandler.removeMessages(SCALE_DOWN);
+                mUIHandler.sendEmptyMessage(SCALE_DOWN);
                 break;
             default:
                 break;
