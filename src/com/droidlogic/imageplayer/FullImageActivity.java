@@ -33,6 +33,7 @@ import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Size;
 import android.view.KeyEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -164,7 +165,12 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             return;
         }
 
-        mImageplayer.showImage(mCurPicPath);
+        int ret = mImageplayer.showImage(mCurPicPath);
+        Log.d(TAG,"runAndShow return"+ret);
+        if (ret != 0) {
+           mUIHandler.sendEmptyMessage(NOT_DISPLAY);
+        }
+
     }
 
     public final BroadcastReceiver mUsbScanner = new BroadcastReceiver() {
@@ -306,18 +312,20 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             long lenth = f.length();
             Log.d(TAG, "this picture size is :" + lenth);
             if (lenth > maxlenth) {
-                Toast.makeText(this, "This picture size " + ((new DecimalFormat("#.00")).format((double) lenth / 1048576) + "MB") + " > 7.0MB not support!", Toast.LENGTH_LONG).show();
-                ret = false;
+                //Toast.makeText(this, "This picture size " + ((new DecimalFormat("#.00")).format((double) lenth / 1048576) + "MB") + " > 7.0MB not support!", Toast.LENGTH_LONG).show();
+                //ret = false;
             }
         }
         return ret;
     }
 
     private void writeAxisNode() {
+        Log.d(TAG,"mSystemControl"+(mSystemControl != null));
         if (mSystemControl != null) {
             mCurrenAXIS = mSystemControl.readSysFs(VIDE_AXIS_NODE);
             String targetAXIS = mSystemControl.readSysFs(WINDOW_AXIS_NODE);
-            Log.d(TAG, "targetAXIS:" + targetAXIS);
+            Size size = getWH(mCurrenAXIS,targetAXIS);
+            mImageplayer.setSampleSurfaceSize(1, size.getWidth()+1,size.getHeight()+1);
             int startIndex = targetAXIS.indexOf("[");
             int endIndex = targetAXIS.indexOf("]");
             String newAxis;
@@ -546,6 +554,9 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         @Override
         public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
             Log.v(TAG, "surfaceChanged");
+            if (mImageplayer != null) {
+                mImageplayer.setSampleSurfaceSize(1,width,height);
+            }
         }
 
         @Override
@@ -599,5 +610,25 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
                 mLoadingProgress.setVisibility(View.GONE);
             }
         }
+    }
+    private static int[] getSplitStr(String originalStr,String splitStr){
+        String[] vals = originalStr.split(splitStr);
+        if (vals == null) return null;
+        int[] intval = new int[vals.length];
+        for (int i=0; i<vals.length; i++) {
+            intval[i] = Integer.valueOf(vals[i]);
+        }
+        return intval;
+    }
+    private static Size getWH(String videoaxis,String windowaxis) {
+        int[] videos = getSplitStr(videoaxis, "\\s+");
+        if (videos.length == 4) {
+            if (videos[2] == -1 && videos[3] == -1) {
+                videos = getSplitStr(windowaxis, "\\s+");
+            }
+            Size wh = new Size(videos[2], videos[3]);
+            return wh;
+        }
+        return new Size(3840,2160);
     }
 }
