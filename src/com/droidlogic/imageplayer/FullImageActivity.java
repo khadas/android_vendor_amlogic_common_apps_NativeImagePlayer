@@ -554,9 +554,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         @Override
         public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
             Log.v(TAG, "surfaceChanged");
-            if (mImageplayer != null) {
-                mImageplayer.setSampleSurfaceSize(1,width,height);
-            }
         }
 
         @Override
@@ -626,7 +623,12 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             if (videos[2] == -1 && videos[3] == -1) {
                 videos = getSplitStr(windowaxis, "\\s+");
             }
-            Size wh = new Size(videos[2], videos[3]);
+            int[] waxis = getSplitStr(windowaxis, "\\s+");
+            Size wh;
+            if ( (waxis[2] + waxis[3]) > (videos[2] + videos[3]) )
+                wh = new Size(waxis[2],waxis[3]);
+            else
+                wh = new Size(videos[2], videos[3]);
             return wh;
         }
         return new Size(3840,2160);
