@@ -363,9 +363,9 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         mSurfaceView.setFocusableInTouchMode(true);
 
         mMenu = (RelativeLayout) findViewById(R.id.menu_layout);
-        mMenu.setVisibility(View.GONE);
+      //  mMenu.setVisibility(View.GONE);
         mLoadingProgress = (ProgressBar) findViewById(R.id.loading_image);
-        mLoadingProgress.setVisibility(View.GONE);
+      //  mLoadingProgress.setVisibility(View.GONE);
         mOutAnimation = AnimationUtils.loadAnimation(this,
                 R.anim.menu_and_left_out);
         mLeftInAnimation = AnimationUtils.loadAnimation(this, R.anim.left_in);
