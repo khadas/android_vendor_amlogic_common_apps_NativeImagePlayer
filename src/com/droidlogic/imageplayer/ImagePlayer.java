@@ -17,211 +17,202 @@
 package com.droidlogic.imageplayer;
 
 import android.content.Context;
-import android.os.HwBinder;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.BitmapDrawable;
+import android.media.Image;
+import android.net.Uri;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.Size;
 import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.view.View;
+import android.view.Surface;
+import java.io.File;
+import java.lang.reflect.Field;
 
-import vendor.amlogic.hardware.imageserver.V1_0.IImageService;
 
+public class ImagePlayer{
+    private static final String TAG = "imageplayer";
+    public static final int STATUS_INITIAL = 0x1;
+    public static final int STATUS_SOURCE = 0x10;
+    public static final int STATUS_PREPARED  = 0x100;
+    public static final int STATUS_READY = 0x111;
+    public static final int STATUS_SHOW = 0x1000;
+    public static final int STATUS_DISPLAY = 0x1111;
+    private int mPictureWidth;
+    private int mPictureHeight;
+    private int mScreenWidth;
+    private int mScreenHeight;
+    private float mScaleVideo;
+   // private Bitmap mCurrentBitmap;
+    private ImageUtils mImageUtil;
+    private int mCurrentStatus;
+    private long mNatvieBitmapInstance;
+    private Surface mSurface;
+    private SurfaceHolder mSurfaceHolder;
+    static {
+        System.loadLibrary("image_jni");
+    }
 
-public class ImagePlayer {
-    private static final String TAG = "ImagePlayer";
-    public static final int REMOTE_EXCEPTION = -1;
-    private static final int IMAGE_PLAYER_DEATH_COOKIE = 1000;
-    private IImageService mProxy;
-    private ImagePlayerDeathRecipient mDeathRecipient;
-
-    /**
-     * Method to create a ImagePlayer,use {@link #init()} function to init image_player_service
-     *
-     * @param context  maybe useful someday
-     * @param callback interface
-     */
-    public ImagePlayer() {
+    public ImagePlayer(Context cxt) {
+        initial(cxt);
+    }
+    private void initial(Context cxt){
         Log.d(TAG, "create ImagePlayer");
-        mDeathRecipient = new ImagePlayerDeathRecipient();
-        init();
+        mImageUtil = new ImageUtils(cxt);
+        mCurrentStatus = 0;
+        initParam();
     }
-
-    private void init() {
-        try {
-            mProxy = IImageService.getService();
-            if (null != mProxy) {
-                mProxy.init();
-                mProxy.linkToDeath(mDeathRecipient, IMAGE_PLAYER_DEATH_COOKIE);
-            }
-        } catch (Exception ex) {
-            Log.e(TAG, "image player getService fail:" + ex);
-        }
+    public boolean isPreparedForImage() {
+        Log.d(TAG,"current status "+mCurrentStatus);
+        return (0 != (mCurrentStatus&STATUS_PREPARED));
     }
-
+    public boolean isPlayed() {
+        return (0 != (mCurrentStatus&STATUS_DISPLAY));
+    }
     public int setDataSource(String path) {
-        try {
-            if (null != mProxy) {
-                return mProxy.setDataSource(getFinalPath(path));
-            }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "setDataSource: ImagePlayerService is dead!:" + ex);
-        }
-        return REMOTE_EXCEPTION;
-    }
-
-    private String getFinalPath(String path) {
-        String finalPath = "";
-        if (!path.startsWith("file://") && !(path.startsWith("http://") || path.startsWith("https://"))) {
-            finalPath = "file://" + path;
+        if ((mCurrentStatus & STATUS_INITIAL) != 0) {
+            mCurrentStatus = STATUS_INITIAL;
         } else {
-            finalPath = path;
+            mCurrentStatus = 0;
         }
-        return finalPath;
+        File sourceFile = new File(path);
+        if (!sourceFile.exists() || !sourceFile.canRead()) {
+            Log.d(TAG,"File "+path+" can not read "+sourceFile.exists()+ "access:"+sourceFile.canRead());
+            return -1;
+        }
+        mCurrentStatus |= STATUS_SOURCE;
+        ImageUtils.Decoder decoder = mImageUtil.decode(sourceFile);
+        Log.d(TAG,"setDataSource"+mScreenWidth+"X"+mScreenHeight+"X"+mScaleVideo);
+        decoder.setTargetSize(mScreenWidth,mScreenHeight);
+
+        try {
+            mNatvieBitmapInstance = decoder.decodeBitmap();
+            Size size = decoder.getSize();
+            mPictureWidth = size.getWidth();
+            mPictureHeight = size.getHeight();
+            Log.d(TAG,"mCurrentBitmap:"+mPictureWidth+"x"+mPictureHeight);
+            mCurrentStatus = mCurrentStatus | STATUS_PREPARED;
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            return -1;
+        }
+        return 0;
     }
 
-    public int setSampleSurfaceSize(int sampleSize, int surfaceW, int surfaceH) {
-        try {
-            if (null != mProxy) {
-                return mProxy.setSampleSurfaceSize(sampleSize, surfaceW, surfaceH);
-            }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "setSampleSurfaceSize: ImagePlayerService is dead!:" + ex);
-        }
-        return REMOTE_EXCEPTION;
+    public int setRotate(float degrees) {
+        nativeRotate(degrees);
+        return 0;
     }
 
-    public int setRotate(float degrees, int autoCrop) {
-        try {
-            if (null != mProxy) {
-                return mProxy.setRotate(degrees, autoCrop);
-            }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "setRotate: ImagePlayerService is dead!:" + ex);
+    public int setScale(float sx, float sy) {
+        if (sx*mPictureWidth >= mScreenWidth || sy*mPictureHeight >= mScreenHeight) {
+            int cropWidth = mPictureWidth < (int)Math.ceil(mScreenWidth/sx)? mPictureWidth : (int)Math.ceil(mScreenWidth/sx);
+            int cropHeight = mPictureHeight < (int)Math.ceil(mScreenHeight/sy)? mPictureHeight : (int)Math.ceil(mScreenHeight/sy);
+            nativeRotateCrop(0,cropWidth,cropHeight);
         }
-        return REMOTE_EXCEPTION;
-    }
-
-    public int setScale(float sx, float sy, int autoCrop) {
-        try {
-            if (null != mProxy) {
-                return mProxy.setScale(sx, sy, autoCrop);
-            }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "setScale: ImagePlayerService is dead!:" + ex);
-        }
-        return REMOTE_EXCEPTION;
-    }
-
-    public int setHWScale(float sc) {
-        try {
-            if (null != mProxy) {
-                return mProxy.setHWScale(sc);
-            }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "setHWScale: ImagePlayerService is dead!:" + ex);
-        }
-        return REMOTE_EXCEPTION;
+        return 0;
     }
 
     public int setTranslate(float tx, float ty) {
-        try {
-            if (null != mProxy) {
-                return mProxy.setTranslate(tx, ty);
-            }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "setTranslate: ImagePlayerService is dead!:" + ex);
-        }
-        return REMOTE_EXCEPTION;
+
+        return 0;
     }
 
-    public int setRotateScale(float degrees, float sx, float sy, int autoCrop) {
-        try {
-            if (null != mProxy) {
-                return mProxy.setRotateScale(degrees, sx, sy, autoCrop);
+    public int setRotateScale(float degrees, float sx, float sy) {
+        Log.d(TAG,"setRotateScale"+degrees+" sx"+sx+" "+mPictureWidth+" "+mPictureHeight);
+        int targetWidth = (int)(sx*mPictureWidth);
+        int targetHeight = (int)(sy*mPictureHeight);
+        int srcW = mPictureWidth;
+        int srcH = mPictureHeight;
+        if (degrees % 180 != 0) {
+            if (mPictureHeight >mScreenWidth || mPictureWidth > mScreenHeight) {
+                //scale down first;
+                float scaleDown = 1.0f*mScreenWidth/mPictureHeight < 1.0f*mScreenHeight/mPictureWidth ?
+                                1.0f* mScreenWidth/mPictureHeight : 1.0f*mScreenHeight/mPictureWidth;
+                targetWidth = (int)(sx*scaleDown*mPictureHeight);
+                targetHeight = (int)(sy*scaleDown*mPictureWidth);
+                srcW = (int)(scaleDown*mPictureHeight);
+                srcH = (int)(scaleDown*mPictureWidth);
+            }else {
+                targetWidth = (int)(sx*mPictureHeight);
+                targetHeight = (int)(sy*mPictureWidth);
+                srcW = mPictureHeight;
+                srcH = mPictureWidth;
             }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "setRotateScale: ImagePlayerService is dead!:" + ex);
         }
-        return REMOTE_EXCEPTION;
+        int cropWidth = targetWidth > mScreenWidth?(int)(mScreenWidth/sx):targetWidth;
+        int cropHeight = targetHeight > mScreenHeight?(int)(mScreenHeight/sy):targetHeight;
+        Log.d(TAG,"setScale crop Size"+cropWidth+"x"+cropHeight+" targetWidth"+targetWidth+"x"+targetHeight);
+        if (targetWidth < srcW && targetHeight < srcH) {
+             nativeRotateCrop(degrees,srcW,srcH);
+        }else {
+            nativeRotateCrop(degrees,cropWidth,cropHeight);
+        }
+
+        return 0;
     }
 
     public int setCropRect(int cropX, int cropY, int cropWidth, int cropHeight) {
-        try {
-            if (null != mProxy) {
-                return mProxy.setCropRect(cropX, cropY, cropWidth, cropHeight);
-            }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "setCropRect: ImagePlayerService is dead!:" + ex);
-        }
-        return REMOTE_EXCEPTION;
+
+        return 0;
     }
 
     public int start() {
-        int ret = REMOTE_EXCEPTION;
-        try {
-            if (null != mProxy) {
-                ret = mProxy.start();
-            }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "start: ImagePlayerService is dead!:" + ex);
-        }
-        return ret;
-    }
 
-    /**
-     * Prepares the ImagePlayer buffer for the picture.
-     * <p>
-     * After setting the datasource and the display surface, you need to
-     * call prepare() to prepare buffer for the show.
-     */
-    public int prepare() {
-        int ret = REMOTE_EXCEPTION;
-        try {
-            if (null != mProxy) {
-                ret = mProxy.prepare();
-            }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "start: ImagePlayerService is dead!:" + ex);
-        }
-        return ret;
+        return 0;
     }
-
+    private void getBitmapNativeInstance(Bitmap bmp) throws  Exception {
+        Class clz = Class.forName("android.graphics.Bitmap");
+        Field[] fields  = clz.getDeclaredFields();
+        for (Field f:fields) {
+            Log.d(TAG,"get bitmap fields " +f.getName());
+            if (f.getName().equals("mNativePtr")) {
+                f.setAccessible(true);
+                mNatvieBitmapInstance = f.getLong(bmp);
+                break;
+            }
+        }
+        Log.d(TAG,"getBitmapNativeInstance:"+mNatvieBitmapInstance);
+    }
     public int show() {
-        int ret = REMOTE_EXCEPTION;
-        try {
-            if (null != mProxy) {
-                ret = mProxy.show();
-            }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "start: ImagePlayerService is dead!:" + ex);
+        int ret = 0;
+         Log.d(TAG, "show"+mCurrentStatus+"xxx"+(mCurrentStatus&STATUS_READY));
+        if ((mCurrentStatus&STATUS_READY) != 0) {
+            ret = nativeShow(mNatvieBitmapInstance);
         }
+        mCurrentStatus = mCurrentStatus|STATUS_SHOW;
         return ret;
     }
 
-    public int showImage(String path) {
-        int ret = REMOTE_EXCEPTION;
-        try {
-            if (null != mProxy) {
-                ret = mProxy.showImage(getFinalPath(path));
-            }
-        } catch (RemoteException ex) {
-            Log.e(TAG, "start: ImagePlayerService is dead!:" + ex);
-        }
-        return ret;
+    public int getBmpWidth() {
+        return mPictureWidth;
     }
-
+    public int getBmpHeight() {
+        return mPictureHeight;
+    }
     public int release() {
-        int ret = REMOTE_EXCEPTION;
-        try {
-            if (null != mProxy) {
-                ret = mProxy.release();
-                mProxy.unlinkToDeath(mDeathRecipient);
-                return ret;
-            }
-        } catch (Exception ex) {
-            Log.e(TAG, "release fails:" + ex);
-        }
-        return ret;
+        mCurrentStatus = 0;
+        nativeRelease();
+        return 0;
     }
-
+    public int getMxW() {
+        return mScreenWidth;
+    }
+    public int getMxH() {
+        return mScreenHeight;
+    }
+    public float getScaleVideo() {
+        return mScaleVideo;
+    }
+    public void setSampleSurfaceSize(SurfaceHolder sh,int width,int height){
+        mCurrentStatus = mCurrentStatus|~STATUS_INITIAL;
+          Log.d(TAG, "setsample"+mCurrentStatus);
+        mScreenHeight = height;
+        mScreenWidth = width;
+    }
     /**
      * Sets the {@link SurfaceHolder} to use for displaying the picture
      * that show in video layer
@@ -231,7 +222,21 @@ public class ImagePlayer {
      * @param sh the SurfaceHolder to use for video display
      */
     public void setDisplay(SurfaceHolder sh) {
-        SurfaceOverlay.setDisplay(sh);
+
+        if (sh != null) {
+            mSurfaceHolder = sh;
+            mSurface = sh.getSurface();
+        } else {
+            Log.d(TAG,"setDisplay null"+Log.getStackTraceString(new Throwable()));
+            mSurface = null;
+        }
+        nativeInitSurface(mSurface);
+         Log.d(TAG, "setDisplay"+mCurrentStatus+"xx"+(mCurrentStatus&STATUS_SHOW));
+        if ((mCurrentStatus&STATUS_SHOW) != 0 && (mCurrentStatus&STATUS_INITIAL) == 0) {
+           show();
+        }
+        mCurrentStatus = mCurrentStatus|STATUS_INITIAL;
+
     }
 
     /**
@@ -249,14 +254,13 @@ public class ImagePlayer {
 
         public void relseased();
     }
-
-    final class ImagePlayerDeathRecipient implements HwBinder.DeathRecipient {
-        @Override
-        public void serviceDied(long cookie) {
-            if (IMAGE_PLAYER_DEATH_COOKIE == cookie) {
-                Log.e(TAG, "imageplayer service died, try to connect it again.");
-                init();
-            }
-        }
-    }
+    /*actual size not be recognized,now is as 1920x1080 profile*/
+    public native int initParam();
+    public native static void nativeInitSurface(Surface surface);
+    public native static int nativeShow(long nativeInstance);
+    public native static int nativeScale(float sx,float sy,long nativeInstance);
+    public native static int nativeRotate(float ori);
+   // public native static int nativeCrop(int width,int height);
+    public native static int nativeRotateCrop(float ori,int width, int height);
+    private native static void nativeRelease();
 }

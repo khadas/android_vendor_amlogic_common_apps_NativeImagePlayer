@@ -13,186 +13,187 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent" >
-
-    <SurfaceView
-        android:id="@+id/surfaceview_show_picture"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_gravity="center" />
-
-    <ProgressBar
-        android:layout_gravity="center"
-        android:id="@+id/loading_image"
+    <FrameLayout
+        android:layout_centerInParent="true"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:indeterminateDrawable="@drawable/rotate_loading_360"
-        android:indeterminateDuration="1800" />
-
-    <RelativeLayout
-        android:id="@+id/menu_layout"
-        android:background="@drawable/box_bk"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="left"
-        android:paddingLeft="60dp" >
-
-        <Button
-            android:id="@+id/menu_nav"
-            android:layout_width="140dp"
+        android:layout_height="wrap_content">
+        <SurfaceView
+            android:id="@+id/surfaceview_show_picture"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_marginTop="100dp"
-            android:focusable="false"
-            android:background="@drawable/navigation_bk"
-            android:text="@string/menu_title"
-            android:textColor="#FFFFFFFF" />
+            android:layout_gravity="center" />
 
-        <View
-            android:id="@+id/line1"
-            android:layout_width="140dp"
-            android:layout_height="1dp"
-            android:layout_above="@+id/ll_rotate_r"
-            android:layout_marginBottom="10dp"
-            android:background="#9fffffff" />
-
-        <LinearLayout
-            android:id="@+id/ll_rotate_r"
-            android:layout_width="140dp"
+        <ProgressBar
+            android:layout_gravity="center"
+            android:id="@+id/loading_image"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:clickable="true"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:gravity="center_vertical"
-            android:background="@drawable/menu_heighlight"
-            android:layout_above="@+id/line2" >
+            android:indeterminateDrawable="@drawable/rotate_loading_360"
+            android:indeterminateDuration="1800" />
+    </FrameLayout>
+            <RelativeLayout
+            android:id="@+id/menu_layout"
+            android:background="@drawable/box_bk"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="left"
+            android:paddingLeft="60dp" >
 
-            <ImageView
-                android:id="@+id/menu_right_rotate"
-                android:layout_width="60dp"
-                android:layout_height="match_parent"
-                android:layout_gravity="center"
-                android:src="@drawable/rotation_r" />
-
-            <TextView
-                android:layout_width="wrap_content"
+            <Button
+                android:id="@+id/menu_nav"
+                android:layout_width="140dp"
                 android:layout_height="wrap_content"
-                android:text="@string/right_rotation"
-                android:textColor="#ffffffff" />
-        </LinearLayout>
-
-        <View
-            android:id="@+id/line2"
-            android:layout_width="140dp"
-            android:layout_height="1dp"
-            android:layout_above="@+id/ll_rotate_l"
-            android:layout_marginBottom="10dp"
-            android:background="#90ffffff" />
-
-        <LinearLayout
-            android:id="@+id/ll_rotate_l"
-            android:layout_width="140dp"
-            android:layout_height="wrap_content"
-            android:clickable="true"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:gravity="center_vertical"
-            android:background="@drawable/menu_heighlight"
-            android:layout_above="@+id/line3" >
-
-            <ImageView
-                android:id="@+id/menu_left_rotate"
-                android:layout_width="60dp"
-                android:layout_height="match_parent"
-                android:layout_gravity="center"
-                android:src="@drawable/left_rotation" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/left_rotation"
-                android:textColor="#FFFFFFFF" />
-        </LinearLayout>
-
-        <View
-            android:id="@+id/line3"
-            android:layout_width="140dp"
-            android:layout_height="1dp"
-            android:layout_above="@+id/ll_scale_up"
-            android:layout_marginBottom="10dp"
-            android:background="#90ffffff" />
-
-        <LinearLayout
-            android:id="@+id/ll_scale_up"
-            android:layout_width="140dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:gravity="center_vertical"
-            android:background="@drawable/menu_heighlight"
-            android:layout_height="wrap_content"
-            android:layout_above="@+id/line4" >
-
-            <ImageView
-                android:id="@+id/iv_scale_up"
-                android:layout_width="60dp"
-                android:layout_height="match_parent"
-                android:layout_alignStart="@+id/ll_scale_up"
-                android:layout_alignBottom="@+id/ll_scale_up"
-                android:layout_gravity="center"
-                android:src="@drawable/scale_up" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:layout_marginTop="100dp"
                 android:focusable="false"
-                android:text="@string/scale_up"
+                android:background="@drawable/navigation_bk"
+                android:text="@string/menu_title"
                 android:textColor="#FFFFFFFF" />
-        </LinearLayout>
 
-        <View
-            android:id="@+id/line4"
-            android:layout_width="140dp"
-            android:layout_height="1dp"
-            android:layout_above="@+id/ll_scale_down"
-            android:layout_marginBottom="10dp"
-            android:background="#90ffffff" />
+            <View
+                android:id="@+id/line1"
+                android:layout_width="140dp"
+                android:layout_height="1dp"
+                android:layout_above="@+id/ll_rotate_r"
+                android:layout_marginBottom="10dp"
+                android:background="#9fffffff" />
 
-        <LinearLayout
-            android:id="@+id/ll_scale_down"
-            android:layout_width="140dp"
-            android:layout_height="wrap_content"
-            android:clickable="true"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:gravity="center_vertical"
-            android:background="@drawable/menu_heighlight"
-            android:layout_above="@+id/line5" >
-
-            <ImageView
-                android:id="@+id/iv_scale_down"
-                android:layout_width="60dp"
-                android:layout_height="match_parent"
-                android:layout_gravity="center"
-                android:src="@drawable/scale_down" />
-
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:id="@+id/ll_rotate_r"
+                android:layout_width="140dp"
                 android:layout_height="wrap_content"
-                android:text="@string/scale_down"
-                android:textColor="#FFFFFFFF" />
-        </LinearLayout>
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center_vertical"
+                android:background="@drawable/menu_heighlight"
+                android:layout_above="@+id/line2" >
 
-        <View
-            android:id="@+id/line5"
-            android:layout_width="140dp"
-            android:layout_height="1dp"
-            android:layout_alignParentBottom="true"
-            android:layout_marginBottom="80dp"
-            android:background="#90DADADA" />
-    </RelativeLayout>
+                <ImageView
+                    android:id="@+id/menu_right_rotate"
+                    android:layout_width="60dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center"
+                    android:src="@drawable/rotation_r" />
 
-</FrameLayout>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/right_rotation"
+                    android:textColor="#ffffffff" />
+            </LinearLayout>
+
+            <View
+                android:id="@+id/line2"
+                android:layout_width="140dp"
+                android:layout_height="1dp"
+                android:layout_above="@+id/ll_rotate_l"
+                android:layout_marginBottom="10dp"
+                android:background="#90ffffff" />
+
+            <LinearLayout
+                android:id="@+id/ll_rotate_l"
+                android:layout_width="140dp"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center_vertical"
+                android:background="@drawable/menu_heighlight"
+                android:layout_above="@+id/line3" >
+
+                <ImageView
+                    android:id="@+id/menu_left_rotate"
+                    android:layout_width="60dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center"
+                    android:src="@drawable/left_rotation" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/left_rotation"
+                    android:textColor="#FFFFFFFF" />
+            </LinearLayout>
+
+            <View
+                android:id="@+id/line3"
+                android:layout_width="140dp"
+                android:layout_height="1dp"
+                android:layout_above="@+id/ll_scale_up"
+                android:layout_marginBottom="10dp"
+                android:background="#90ffffff" />
+
+            <LinearLayout
+                android:id="@+id/ll_scale_up"
+                android:layout_width="140dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center_vertical"
+                android:background="@drawable/menu_heighlight"
+                android:layout_height="wrap_content"
+                android:layout_above="@+id/line4" >
+
+                <ImageView
+                    android:id="@+id/iv_scale_up"
+                    android:layout_width="60dp"
+                    android:layout_height="match_parent"
+                    android:layout_alignStart="@+id/ll_scale_up"
+                    android:layout_alignBottom="@+id/ll_scale_up"
+                    android:layout_gravity="center"
+                    android:src="@drawable/scale_up" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:focusable="false"
+                    android:text="@string/scale_up"
+                    android:textColor="#FFFFFFFF" />
+            </LinearLayout>
+
+            <View
+                android:id="@+id/line4"
+                android:layout_width="140dp"
+                android:layout_height="1dp"
+                android:layout_above="@+id/ll_scale_down"
+                android:layout_marginBottom="10dp"
+                android:background="#90ffffff" />
+            <LinearLayout
+                android:id="@+id/ll_scale_down"
+                android:layout_width="140dp"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center_vertical"
+                android:background="@drawable/menu_heighlight"
+                android:layout_above="@+id/line5" >
+
+                <ImageView
+                    android:id="@+id/iv_scale_down"
+                    android:layout_width="60dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center"
+                    android:src="@drawable/scale_down" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/scale_down"
+                    android:textColor="#FFFFFFFF" />
+            </LinearLayout>
+
+            <View
+                android:id="@+id/line5"
+                android:layout_width="140dp"
+                android:layout_height="1dp"
+                android:layout_alignParentBottom="true"
+                android:layout_marginBottom="80dp"
+                android:background="#90DADADA" />
+        </RelativeLayout>
+</RelativeLayout>

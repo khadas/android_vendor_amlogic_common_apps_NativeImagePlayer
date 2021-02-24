@@ -1,0 +1,78 @@
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+android_app {
+    name: "NativeImagePlayer",
+
+    srcs: ["src/**/*.java"],
+    system_ext_specific: true,
+    certificate: "platform",
+    jni_libs: ["libimage_jni"],
+    platform_apis: true,
+
+    static_libs: ["androidx.appcompat_appcompat"],
+    optimize: {
+        enabled: false,
+        proguard_flags_files: ["proguard.flags"],
+    },
+    libs: ["droidlogic"],
+    dex_preopt: {
+        enabled: false,
+    },
+}
+
+cc_library_shared {
+    name: "libimage_jni",
+    srcs: ["jni/*.cpp"],
+    system_ext_specific: true,
+    shared_libs: [
+        "libandroidfw",
+        "libbase",
+        "libcutils",
+        "libutils",
+        "libhwui",
+        "libgui",
+        "libui",
+        "libandroid_runtime",
+        "liblog",
+        "libhardware",
+        "libnativehelper",
+        "libhardware_legacy",
+        "libstagefright_foundation",
+    ],
+    include_dirs: [
+        "external/skia/include/codec",
+        "external/skia/include/core",
+        "frameworks/native/libs/nativewindow/include",
+        "frameworks/native/libs/arect/include",
+        "hardware/amlogic/gralloc",
+        "vendor/amlogic/common/frameworks/services",
+    ],
+    header_libs: [
+        "libhwui_internal_headers",
+        "android_graphics_jni_headers",
+    ],
+    static_libs: [
+        // TODO(b/148645937) move this back to shared_libs
+        "libnativehelper",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Wno-unused-parameter",
+    ],
+    sanitize: {
+        scs: true,
+    },
+}
