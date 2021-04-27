@@ -96,7 +96,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private static final int ROTATION_DEGREE = 90;
     private static final int DEFAULT_DEGREE = 0;
     private static final long maxlenth = 7340032;//gif max lenth 7MB
-
+    private static final int MSG_DELAY_TIME = 10000;
     private boolean mPlayPicture;
     private RelativeLayout mMenu;
     private ImagePlayer mImageplayer;
@@ -124,6 +124,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
     private LoadImageTask mLoadImageTask;
     private Uri mUri;
+    private boolean paused  = false;
 
     private Handler mUIHandler = new Handler() {
         @Override
@@ -136,6 +137,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
                     break;
                 case NOT_DISPLAY:
                     Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+                    paused = true;
                     break;
                 case ROTATE_R:
                     rotate(true);
@@ -172,7 +174,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
         Log.d(TAG,"runAndShow return"+ret);
         if (ret != 0) {
-            mUIHandler.sendEmptyMessage(NOT_DISPLAY);
+            mUIHandler.sendEmptyMessageDelayed(NOT_DISPLAY, MSG_DELAY_TIME);
         }
         while (mImageplayer != null && !mImageplayer.isPreparedForImage()) {
             //here wait for surface ready
@@ -181,8 +183,14 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             }catch(Exception ex) {
 
             }
+            if (paused)
+                break;
+            if (ret != 0) {
+                ret = mImageplayer.setDataSource(mCurPicPath);
+            }
         }
-        adjustViewSize(DEFAULT_DEGREE,SCALE_ORI);
+        mUIHandler.removeMessages(NOT_DISPLAY);
+        adjustViewSize(DEFAULT_DEGREE, SCALE_ORI);
         mImageplayer.show();
 
     }
@@ -473,6 +481,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     @Override
     protected void onStart() {
         super.onStart();
+        paused = false;
         Log.d(TAG,"onStart");
         if (null == mImageplayer) {
             mImageplayer = new ImagePlayer(FullImageActivity.this.getApplicationContext());
@@ -491,6 +500,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     protected void onStop() {
         super.onStop();
         Log.d(TAG, "onStop");
+        paused = true;
         mLoadImageTask = null;
 
         if (mImageplayer != null) {

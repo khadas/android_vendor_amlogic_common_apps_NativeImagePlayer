@@ -66,11 +66,16 @@ public class ImagePlayer{
         initParam();
     }
     public boolean isPreparedForImage() {
-        Log.d(TAG,"current status "+mCurrentStatus);
-        return (0 != (mCurrentStatus&STATUS_PREPARED));
+        boolean ret = (0 != (mCurrentStatus&STATUS_PREPARED));
+        if (!ret)
+            Log.d(TAG,"not prepared to show" + mCurrentStatus);
+        return ret;
     }
     public boolean isPlayed() {
-        return (0 != (mCurrentStatus&STATUS_DISPLAY));
+        boolean ret = (STATUS_DISPLAY == (mCurrentStatus&STATUS_DISPLAY));
+        if (!ret)
+            Log.d(TAG,"is not Played" + mCurrentStatus);
+        return ret;
     }
     public int setDataSource(String path) {
         if ((mCurrentStatus & STATUS_INITIAL) != 0) {
@@ -180,7 +185,7 @@ public class ImagePlayer{
     public int show() {
         int ret = 0;
          Log.d(TAG, "show"+mCurrentStatus+"xxx"+(mCurrentStatus&STATUS_READY));
-        if ((mCurrentStatus&STATUS_READY) != 0) {
+        if ((mCurrentStatus&STATUS_READY) == STATUS_READY) {
             ret = nativeShow(mNatvieBitmapInstance);
         }
         mCurrentStatus = mCurrentStatus|STATUS_SHOW;
@@ -231,11 +236,14 @@ public class ImagePlayer{
             mSurface = null;
         }
         nativeInitSurface(mSurface);
-         Log.d(TAG, "setDisplay"+mCurrentStatus+"xx"+(mCurrentStatus&STATUS_SHOW));
+        Log.d(TAG, "setDisplay"+mCurrentStatus+"xx"+(mCurrentStatus&STATUS_SHOW));
         if ((mCurrentStatus&STATUS_SHOW) != 0 && (mCurrentStatus&STATUS_INITIAL) == 0) {
+            mCurrentStatus = mCurrentStatus|STATUS_INITIAL;
+           Log.d(TAG, "realy show");
            show();
+        } else {
+            mCurrentStatus = mCurrentStatus|STATUS_INITIAL;
         }
-        mCurrentStatus = mCurrentStatus|STATUS_INITIAL;
 
     }
 

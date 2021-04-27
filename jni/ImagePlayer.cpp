@@ -236,7 +236,7 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen) {
     size_t yStride = frame_width;
     size_t chromaStride = frame_width;
     uint8_t* pixelBuffer = (uint8_t*)data;
-
+    memset(yPlane, 128, height * width);
     imageplayer->rgbToYuv420(pixelBuffer, width, height, yPlane,
                     uPlane, vPlane, chromaStep, yStride, chromaStride);
     mapper.unlock(buf->handle);

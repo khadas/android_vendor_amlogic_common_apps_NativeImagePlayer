@@ -379,7 +379,6 @@ void ImageOperator::rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, ui
     uint8_t R, G, B;
     size_t index = 0;
 
-    memset(crPlane,128,(chromaStep*height*width+1)/2);
     for (size_t j = 0; j < height; j++) {
         uint8_t* cr = crPlane;
         uint8_t* cb = cbPlane;
