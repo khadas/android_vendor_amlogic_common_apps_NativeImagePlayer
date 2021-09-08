@@ -388,12 +388,22 @@ void ImageOperator::rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, ui
             R = rgbBuf[index++];
             G = rgbBuf[index++];
             B = rgbBuf[index++];
-            *y++ = (77 * R + 150 * G +  29 * B) >> 8;
-            if (jEven && (i & 1) == 0) {
-                *cb = (( -43 * R - 85 * G + 128 * B) >> 8) + 128;
-                *cr = (( 128 * R - 107 * G - 21 * B) >> 8) + 128;
-                cr += chromaStep;
-                cb += chromaStep;
+            if (width <= 720) {
+                *y++ =  ( 0.257 * R +0.504 * G + 0.098 * B)+16;
+                if (jEven && (i & 1) == 0) {
+                    *cb = ( -0.148 * R - 0.291 * G + 0.439 * B) + 128;
+                    *cr = (0.439 * R - 0.368 * G + -0.071 * B) + 128;
+                    cr += chromaStep;
+                    cb += chromaStep;
+                }
+            }else {
+                 *y++ =  ( 0.183 * R +0.614 * G + 0.062 * B)+16;
+                if (jEven && (i & 1) == 0) {
+                    *cb = ( -0.101 * R - 0.339 * G + 0.439 * B) + 128;
+                    *cr = (0.439 * R - 0.399 * G + -0.040 * B) + 128;
+                    cr += chromaStep;
+                    cb += chromaStep;
+                }
             }
             // Skip alpha
             index++;
