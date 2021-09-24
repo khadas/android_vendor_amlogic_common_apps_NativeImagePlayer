@@ -216,8 +216,8 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             srcW = srcW > mImageplayer.getMxW()?mImageplayer.getMxW():srcW;
             srcH = srcH > mImageplayer.getMxH()?mImageplayer.getMxH():srcH;
             Log.d(TAG,"show setFixedSize"+srcW+"x"+srcH);
-            srcW = (int)Math.ceil(srcW/mImageplayer.getScaleVideo());
-            srcH = (int)Math.ceil(srcH/mImageplayer.getScaleVideo());
+            //srcW = (int)Math.ceil(srcW/mImageplayer.getScaleVideo());
+            //srcH = (int)Math.ceil(srcH/mImageplayer.getScaleVideo());
             int frame_width = ((srcW + 0x1f) & ~0x1f);
             Log.d(TAG,"show setFixedSize after scale to surface"+frame_width+"x"+srcH);
             mSurfaceView.getHolder().setFixedSize(frame_width,srcH);

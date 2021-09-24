@@ -43,6 +43,8 @@ import java.util.List;
 public class ImageUtils {
     private static final String TAG = "ImageUtil";
     private Context mCtx;
+    public static final int FULLWIDTH = 1280;
+    public static final int FULLHEIGHT = 720;
 
     public ImageUtils(@NonNull Context context) {
         mCtx = context.getApplicationContext();
@@ -151,6 +153,10 @@ public class ImageUtils {
                                             width*1.0/mSize.getWidth() : height*1.0/mSize.getHeight();
                         decoder.setTargetSize((int)(mSize.getWidth()*sx), (int)(mSize.getHeight()*sx));
                         mSize = new Size((int)(mSize.getWidth()*sx), (int)(mSize.getHeight()*sx));
+                    }else {
+                        if (mSize.getWidth() > FULLWIDTH &&mSize.getHeight() > FULLHEIGHT) {
+                            decoder.setTargetSize(width,height);
+                        }
                     }
                     decoder.setAllocator(ImageDecoder.ALLOCATOR_SHARED_MEMORY);
                 }
