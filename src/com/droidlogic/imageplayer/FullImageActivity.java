@@ -218,9 +218,10 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             Log.d(TAG,"show setFixedSize"+srcW+"x"+srcH);
             //srcW = (int)Math.ceil(srcW/mImageplayer.getScaleVideo());
             //srcH = (int)Math.ceil(srcH/mImageplayer.getScaleVideo());
-            int frame_width = ((srcW + 0x1f) & ~0x1f);
-            Log.d(TAG,"show setFixedSize after scale to surface"+frame_width+"x"+srcH);
-            mSurfaceView.getHolder().setFixedSize(frame_width,srcH);
+            int frameWidth = ((srcW + 1) & ~1);
+            int frameHeight = ((srcH + 1) & ~1);
+            Log.d(TAG,"show setFixedSize after scale to surface"+frameWidth+"x"+frameHeight);
+            mSurfaceView.getHolder().setFixedSize(frameWidth,frameHeight);
         });
     }
     public final BroadcastReceiver mUsbScanner = new BroadcastReceiver() {

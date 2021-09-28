@@ -196,10 +196,11 @@ static int imageplayer_rotate(JNIEnv *env, jclass clz,jfloat ori) {
 static int render(int32_t width, int32_t height, void *data, size_t inLen) {
     status_t err = NO_ERROR;
     int ret = 0;
+    int frame_width = ((width + 1) & ~1);
+    int frame_height =((height + 1) & ~1);
+    ALOGE("render for frame size (%d x %d)-->(%d x %d)",width,height,frame_width,frame_height);
     ANativeWindowBuffer *buf;
-    native_window_set_buffers_dimensions(mNativeWindow.get(), width, height);
-    int cropW = width;
-    int cropH = height;
+    native_window_set_buffers_dimensions(mNativeWindow.get(), frame_width, frame_height);
     status_t res =  mNativeWindow->dequeueBuffer(mNativeWindow.get(),&buf,&fenceFd);
     if (res != OK) {
         ALOGE("%s: Dequeue buffer failed: %s (%d)", __FUNCTION__, strerror(-res), res);
@@ -213,9 +214,10 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen) {
         }
         return ret;
     }
-    ALOGE("buf %d %d  %d %d %p",buf->format,buf->stride,buf->width, buf->height, buf);
+    ALOGE("-->buf %d %d  %d %d %p",buf->format,buf->stride,buf->width, buf->height, buf);
+
     GraphicBufferMapper &mapper = GraphicBufferMapper::get();
-    Rect bounds(width,height);
+    Rect bounds(frame_width,frame_height);
     uint8_t* img = NULL;
 
     err =  mapper.lock(buf->handle,GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_NEVER,bounds,(void**)(&img));
@@ -225,18 +227,15 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen) {
                 strerror(-ret), ret);
         return ret;
     }
-
-    int frame_width = ((width + 0x1f) & ~0x1f);
-    int frame_height = (height + 0xf) & ~0xf;
-    ALOGE("render for frame size (%d x %d)-->(%d x %d)",width,height,frame_width,frame_height);
+    memset(img, 128, buf->height * buf->stride*3/2);
+    memset(img, 0 , buf->stride *  buf->height);
     uint8_t* yPlane = img;
-    uint8_t* uPlane = img + frame_width*height;
+    uint8_t* uPlane = img + buf->stride*buf->height;
     uint8_t* vPlane = uPlane + 1;
     size_t chromaStep = 2;
-    size_t yStride = frame_width;
-    size_t chromaStride = frame_width;
+    size_t yStride = buf->stride;
+    size_t chromaStride =  buf->stride;
     uint8_t* pixelBuffer = (uint8_t*)data;
-    memset(yPlane, 128, height * width);
     imageplayer->rgbToYuv420(pixelBuffer, width, height, yPlane,
                     uPlane, vPlane, chromaStep, yStride, chromaStride);
     mapper.unlock(buf->handle);
