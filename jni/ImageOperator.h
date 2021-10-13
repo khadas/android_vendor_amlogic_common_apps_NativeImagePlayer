@@ -44,6 +44,7 @@
 #include <ui/GraphicBuffer.h>
 #include <hardware/gralloc1.h>
 #include <cutils/ashmem.h>
+#include "SharedMemoryProxy.h"
 
 using namespace android;
 #define IMG_INVALIDE  -1
@@ -66,7 +67,12 @@ typedef struct{
     int format;
     int rotate;
 } FrameInfo_t;
-
+class ImageAlloc : public SkBitmap::Allocator {
+public:
+    bool allocPixelRef(SkBitmap* bitmap) override ;
+private:
+    SharedMemoryProxy mMemory;
+};
 #define sR ((int)(s[0]))
 #define sG ((int)(s[1]))
 #define sB ((int)(s[2]))
@@ -75,7 +81,7 @@ class ImageOperator{
         ImageOperator(JNIEnv *env);
         int init(__uint64_t bitmap,int defrotate,bool fillsurface);
         void setSurfaceSize(int surfaceW, int surfaceH);
-        int setRotate(float degrees,SkBitmap& rotateBitmap) ;
+        int setRotate(float degrees,SkBitmap& rotateBitmap, ImageAlloc& alloc) ;
         int setScale(float sx, float sy, void* displayAddr);
         int getSelf(SkBitmap& bmp);
         int setTranslate(float tx, float ty);

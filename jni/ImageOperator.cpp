@@ -21,6 +21,7 @@
 
 #define LOG_NDEBUG 0
 #define LOG_TAG "SurfaceOverlay-jni"
+#include "SharedMemoryProxy.h"
 #include "ImageOperator.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -153,38 +154,17 @@ static uint32_t rgb2yuv(uint32_t rgb)
             dst_yuyv[3] = RGBToU(r, g, b);
         }
     }
-//////////////////////////////////////////////
 
-static void* usesharemem(long size) {
-    int fd = ashmem_create_region("swapbuffer", size);
-    if (fd < 0) {
-        return nullptr;
-    }
-
-    void* addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (addr == MAP_FAILED) {
-        close(fd);
-        return nullptr;
-    }
-
-    if (ashmem_set_prot_region(fd, PROT_READ) < 0) {
-        munmap(addr, size);
-        close(fd);
-        return nullptr;
-    }
-    return addr;
-}
-class ImageAlloc : public SkBitmap::Allocator {
-public:
-    bool allocPixelRef(SkBitmap* bitmap) override {
-        const SkImageInfo& info = bitmap->info();
-        void* storage = usesharemem(info.height() * info.minRowBytes());
+bool ImageAlloc:: allocPixelRef(SkBitmap* bitmap) {
+    const SkImageInfo& info = bitmap->info();
+    if (mMemory.allocmem(info.height() * info.minRowBytes()) == 0) {
+        ALOGE("alloc pxi ");
         sk_sp<SkPixelRef> pr = sk_sp<SkPixelRef>(
-                new SkPixelRef(info.width(), info.height(), storage, info.minRowBytes()));
+                new SkPixelRef(info.width(), info.height(), mMemory.getmem(), info.minRowBytes()));
         bitmap->setPixelRef(std::move(pr), 0, 0);
         return true;
-    }
-};
+    }return false;
+}
 
 ////////////////////////////////////////////
 ImageOperator::ImageOperator(JNIEnv *env):mEnv(env){
@@ -224,7 +204,7 @@ int ImageOperator::getSelf(SkBitmap& bmp) {
     reinterpret_cast<Bitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&bmp);
     return RET_OK;
 }
-int ImageOperator::setRotate(float degrees,SkBitmap& rotateBitmap) {
+int ImageOperator::setRotate(float degrees,SkBitmap& rotateBitmap,ImageAlloc& alloc) {
     ALOGE("mbitmap.mNativeHandler %lld",mbitmap.mNativeHandler);
     if (mbitmap.mNativeHandler < 0 ) {
         return IMG_INVALIDE;
@@ -232,8 +212,6 @@ int ImageOperator::setRotate(float degrees,SkBitmap& rotateBitmap) {
     SkBitmap srcBitmap;
 
     reinterpret_cast<Bitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&srcBitmap);
-   // SkBitmap rotateBitmap;
-    SkCanvas *canvas = NULL;
 
     int sourceWidth = srcBitmap.width();
     int sourceHeight = srcBitmap.height();
@@ -255,8 +233,8 @@ int ImageOperator::setRotate(float degrees,SkBitmap& rotateBitmap) {
     SkImageInfo info = SkImageInfo::Make(dstWidth, dstHeight,
                                          colorType, srcBitmap.alphaType());
     rotateBitmap.setInfo(info);
-    SkBitmap::Allocator* alloc = new ImageAlloc();
-    rotateBitmap.tryAllocPixels(alloc);
+    SkCanvas *canvas = NULL;
+    alloc.allocPixelRef(&rotateBitmap);
     SkPaint paint;
     paint.setAntiAlias(true);
     paint.setDither(true);
@@ -268,6 +246,7 @@ int ImageOperator::setRotate(float degrees,SkBitmap& rotateBitmap) {
     delete canvas;
     return RET_OK;
 }
+
 int ImageOperator::setScale(float sx, float sy,void* addr){
     if (mbitmap.mNativeHandler < 0 ) {
         return IMG_INVALIDE;

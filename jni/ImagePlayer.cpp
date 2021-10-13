@@ -85,26 +85,6 @@ status_t nativeWindowConnect(ANativeWindow *surface, const char *reason) {
     return err;
 }
 
-static void* usesharemem(long size) {
-    int fd = ashmem_create_region("swapbuffer", size);
-    if (fd < 0) {
-        return nullptr;
-    }
-
-    void* addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (addr == MAP_FAILED) {
-        close(fd);
-        return nullptr;
-    }
-
-    if (ashmem_set_prot_region(fd, PROT_READ) < 0) {
-        munmap(addr, size);
-        close(fd);
-        return nullptr;
-    }
-    return addr;
-}
-
 static int imageplayer_initialParam(JNIEnv *env, jobject entity) {
     ALOGE("imageplayer_initialParam");
     const std::string path(PROPERTY);
@@ -183,7 +163,8 @@ static void  imageplayer_nativeInitSurface(JNIEnv *env, jclass clz, jobject jsur
 static int imageplayer_rotate(JNIEnv *env, jclass clz,jfloat ori) {
     ALOGE("imageplayer_rotate %f",ori);
     SkBitmap rotateBitmap;
-    imageplayer->setRotate(ori,rotateBitmap);
+    ImageAlloc alloc;
+    imageplayer->setRotate(ori,rotateBitmap,alloc);
     ALOGE("after rotate %d %d",rotateBitmap.width(),rotateBitmap.height());
     uint8_t* pixelBuffer = (uint8_t*)rotateBitmap.getPixels();
 
@@ -191,6 +172,7 @@ static int imageplayer_rotate(JNIEnv *env, jclass clz,jfloat ori) {
    // CHECK_EQ(OK, native_window_set_crop(mNativeWindow.get(), &standard));
    // CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_NO_SCALE_CROP));
     render(rotateBitmap.width(),rotateBitmap.height(),pixelBuffer,rotateBitmap.width()*rotateBitmap.height());
+    rotateBitmap.reset();
     return 0;
 }
 static int render(int32_t width, int32_t height, void *data, size_t inLen) {
@@ -262,15 +244,15 @@ static jint nativeShow(JNIEnv *env, jclass clz, jlong jbitmap){
 
 static jint imageplayer_rotateCrop(JNIEnv* env, jclass clz,jfloat ori, jint width, jint height) {
     ALOGE("crop %f %d %d",ori,width,height);
+    ImageAlloc alloc;
     SkBitmap bmp;
     if (((int)ori) %360 == 0)
         imageplayer->getSelf(bmp);
     else
-        imageplayer->setRotate(ori,bmp);
+        float scaleSize = imageplayer->setRotate(ori,bmp,alloc);
     ALOGE("before crop after rotate %d %d[mFrame%dx%d]",bmp.width(),bmp.height(),mFrameWidth,mFrameHeight);
 
     if (bmp.height() > mFrameHeight || bmp.width() > mFrameWidth) {
-        ALOGE("!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         int hy = bmp.height()-height > 0 ? bmp.height()-height:height-bmp.height();
         int wx = bmp.width()-width > 0 ? bmp.width()-width:width - bmp.width();
         android_native_rect_t standard = {wx/2,hy/2,(bmp.width()+width)/2,(bmp.height()+height)/2};
@@ -284,7 +266,9 @@ static jint imageplayer_rotateCrop(JNIEnv* env, jclass clz,jfloat ori, jint widt
         CHECK_EQ(OK, native_window_set_crop(mNativeWindow.get(), &standard));
     }
     uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
-    return render(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+    int ret =  render(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+    bmp.reset();
+    return ret;
 }
 
   static jint imageplayer_nativeScale(JNIEnv *env, jclass clz,jfloat sx,jfloat sy,jlong jbitmap) {
