@@ -31,6 +31,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
+import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.text.TextUtils;
@@ -50,6 +51,8 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 import java.io.File;
+import java.io.FileDescriptor;
+import java.lang.reflect.Method;
 import java.io.IOException;
 import java.util.ArrayList;
 import androidx.core.app.ActivityCompat;
@@ -78,7 +81,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
     public static final String VIDE_AXIS_NODE = "/sys/class/video/axis";
     public static final String WINDOW_AXIS_NODE = "/sys/class/graphics/fb0/window_axis";
-
+    public static final String STORAGE_ROOT = "/storage/";
     private static final int DISMISS_PROGRESSBAR = 0;
     private static final int DISMISS_MENU = 1;
     private static final int NOT_DISPLAY = 2;
@@ -165,11 +168,11 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private void runAndShow() {
         mCurPicPath = getPathByUri(mUri);
         Log.d(TAG, "runAndShow mCurPicPath " + mCurPicPath);
-        if (TextUtils.isEmpty(mCurPicPath)) {
+        if (TextUtils.isEmpty(mCurPicPath) || !new File(mCurPicPath).canRead()) {
+            mUIHandler.sendEmptyMessage(NOT_DISPLAY);
             Log.e(TAG, "runAndShow pic path empty!");
             return;
         }
-
         int ret = mImageplayer.setDataSource(mCurPicPath);
 
         Log.d(TAG,"runAndShow return"+ret);
@@ -291,12 +294,31 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             String path = getDocumentPath(this, uri);
             return path;
         }
+        try{
+            ParcelFileDescriptor fileDescriptor = getContentResolver().openFileDescriptor(uri, "r");
+            FileDescriptor fd = fileDescriptor.getFileDescriptor();
+            Method method = Class.forName(ParcelFileDescriptor.class.getName())
+                    .getDeclaredMethod("getFile", FileDescriptor.class);
+            method.setAccessible(true);
+            File file = (File)method.invoke(fileDescriptor,fd);
+            if (file != null && file.canRead()) {
+                return file.getAbsolutePath();
+            }
+        }catch(Exception ex) { }
         String[] proj = {MediaStore.Images.Media.DATA};
         Cursor cursor = managedQuery(uri, proj, null, null, null);
         if (cursor != null) {
-            int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-            cursor.moveToFirst();
-            return cursor.getString(column_index);
+            try {
+                int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+                cursor.moveToFirst();
+                return cursor.getString(column_index);
+            }catch (Exception ex) {
+                String possiblePath = "";
+                if (!uriStr.isEmpty() && uriStr.contains(STORAGE_ROOT)) {
+                    int pos = uriStr.indexOf(STORAGE_ROOT);
+                    return uriStr.substring(pos,uriStr.length());
+                }
+            }
         }
         return uri.getPath();
     }
