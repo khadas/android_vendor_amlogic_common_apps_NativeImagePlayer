@@ -205,6 +205,10 @@ static jobject ImageDecoder_nCreateFd(JNIEnv* env, jobject /*clazz*/,
     }
 
     int dupDescriptor = fcntl(descriptor, F_DUPFD_CLOEXEC, 0);
+    if (dupDescriptor < 0) {
+        return throw_exception(env, kSourceMalformedData, "Could not duplicating file",
+                               nullptr, source);
+    }
     FILE* file = fdopen(dupDescriptor, "r");
     if (file == NULL) {
         close(dupDescriptor);

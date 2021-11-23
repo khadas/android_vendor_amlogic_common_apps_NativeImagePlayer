@@ -50,7 +50,7 @@ using namespace android;
 #define IMG_INVALIDE  -1
 #define OPT_SUCCESS 0
 typedef struct{
-    __uint64_t mNativeHandler;
+    __int64_t mNativeHandler;
     int width;
     int height;
     int rotate;
@@ -79,7 +79,7 @@ private:
 class ImageOperator{
     public:
         ImageOperator(JNIEnv *env);
-        int init(__uint64_t bitmap,int defrotate,bool fillsurface);
+        int init(__int64_t bitmap,int defrotate,bool fillsurface);
         void setSurfaceSize(int surfaceW, int surfaceH);
         int setRotate(float degrees,SkBitmap& rotateBitmap, ImageAlloc& alloc) ;
         int setScale(float sx, float sy, void* displayAddr);

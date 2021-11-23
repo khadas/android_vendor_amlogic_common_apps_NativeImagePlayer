@@ -184,7 +184,7 @@ int ImageOperator::show(void *displayAddr) {
     reinterpret_cast<Bitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&bitmap);
     return renderAndShow(&bitmap,displayAddr);
 }
-int ImageOperator::init(__uint64_t bitmap,int defrotate,bool fillsurface) {
+int ImageOperator::init(__int64_t bitmap,int defrotate,bool fillsurface) {
     ALOGE("-0---init %lld",bitmap);
     mbitmap.mNativeHandler = bitmap;
     mbitmap.rotate = defrotate;
