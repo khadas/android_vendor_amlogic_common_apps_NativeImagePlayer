@@ -17,9 +17,9 @@
 #include <jni.h>
 #include <stdio.h>
 
-extern int register_com_droidlogic_imageplayer_ImagePlayer(JNIEnv*);
-extern int register_com_droidlogic_imageplayer_ImageDecoder(JNIEnv*);
-
+extern int register_com_droidlogic_imageplayer_decoder_ImagePlayer(JNIEnv*);
+extern int register_com_droidlogic_imageplayer_decoder_BmpInfo(JNIEnv*);
+extern int register_com_droidlogic_imageplayer_decoder_GifBmpInfo(JNIEnv*);
 jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     JNIEnv *env = NULL;
 
@@ -27,8 +27,9 @@ jint JNI_OnLoad(JavaVM *vm, void *reserved) {
         return JNI_ERR;
     }
 
-    if (register_com_droidlogic_imageplayer_ImageDecoder(env) ||
-            register_com_droidlogic_imageplayer_ImagePlayer(env)) {
+    if (register_com_droidlogic_imageplayer_decoder_ImagePlayer(env) ||
+            register_com_droidlogic_imageplayer_decoder_BmpInfo(env)||
+            register_com_droidlogic_imageplayer_decoder_GifBmpInfo(env)) {
         return JNI_ERR;
     }
 

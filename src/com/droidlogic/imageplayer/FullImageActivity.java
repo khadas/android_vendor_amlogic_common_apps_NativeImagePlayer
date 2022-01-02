@@ -45,43 +45,40 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.Animation;
+import android.view.animation.AnimationSet;
 import android.view.animation.AnimationUtils;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
+
 import java.io.File;
 import java.io.FileDescriptor;
 import java.lang.reflect.Method;
 import java.io.IOException;
 import java.util.ArrayList;
+
 import androidx.core.app.ActivityCompat;
 
-/**
- * show the image in video layer
- */
-public class FullImageActivity extends Activity implements View.OnClickListener, View.OnFocusChangeListener {
-    private static final String TAG = "ImagePlayer";
+import com.droidlogic.imageplayer.decoder.ImagePlayer;
 
+
+public class FullImageActivity extends Activity implements View.OnClickListener, View.OnFocusChangeListener, ImagePlayer.PrepareReadyListener {
     public static final int DISPLAY_MENU_TIME = 5000;
-    private static final int DISPLAY_PROGRESSBAR = 1000;
-
-    private static final boolean DEBUG = true;
-    private static final int REQUEST_EXTERNAL_STORAGE = 1;
-    private static String[] PERMISSIONS_STORAGE = {
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-    };
     public static final String ACTION_REVIEW = "com.android.camera.action.REVIEW";
     public static final String KEY_GET_CONTENT = "get-content";
     public static final String KEY_GET_ALBUM = "get-album";
     public static final String KEY_TYPE_BITS = "type-bits";
     public static final String KEY_MEDIA_TYPES = "mediaTypes";
     public static final String KEY_DISMISS_KEYGUARD = "dismiss-keyguard";
-
     public static final String VIDE_AXIS_NODE = "/sys/class/video/axis";
     public static final String WINDOW_AXIS_NODE = "/sys/class/graphics/fb0/window_axis";
     public static final String STORAGE_ROOT = "/storage/";
+    private static final String TAG = "FullImageActivity";
+    private static final int DISPLAY_PROGRESSBAR = 1000;
+    private static final boolean DEBUG = true;
+    private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private static final int DISMISS_PROGRESSBAR = 0;
     private static final int DISMISS_MENU = 1;
     private static final int NOT_DISPLAY = 2;
@@ -89,17 +86,23 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private static final int ROTATE_R = 4;
     private static final int SCALE_UP = 5;
     private static final int SCALE_DOWN = 6;
-
+    private static final int SHOW_LEFT_ANIM = 7;
+    private static final int SHOW_RIGHT_ANIM = 8;
+    private static final int SHOW_TOP_ANIM = 9;
+    private static final int SHOW_BOTTOM_ANIM = 10;
     private static final float SCALE_RATIO = 0.2f;
     private static final float SCALE_ORI = 1.0f;
     private static final float SCALE_MAX = 2.0f;
     private static final float SCALE_MIN = 0.2f;
     private static final float SCALE_ERR = 0.01f;
-
     private static final int ROTATION_DEGREE = 90;
     private static final int DEFAULT_DEGREE = 0;
     private static final long maxlenth = 7340032;//gif max lenth 7MB
     private static final int MSG_DELAY_TIME = 10000;
+    private static String[] PERMISSIONS_STORAGE = {
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+    };
     private boolean mPlayPicture;
     private RelativeLayout mMenu;
     private ImagePlayer mImageplayer;
@@ -116,117 +119,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private float mScale = SCALE_ORI;
 
     private String mCurPicPath;
-
-    private ArrayList<Uri> mImageList = new ArrayList<Uri>();
-    private ArrayList<String> mPathList = new ArrayList<String>();
-
-    private String mCurrenAXIS;
-
-    private int mSlideIndex;
-    private int mDegress;
-
-    private LoadImageTask mLoadImageTask;
-    private Uri mUri;
-    private boolean paused  = false;
-
-    private Handler mUIHandler = new Handler() {
-        @Override
-        public void handleMessage(Message msg) {
-            switch (msg.what) {
-                case DISMISS_PROGRESSBAR:
-                    break;
-                case DISMISS_MENU:
-                    displayMenu(false);
-                    break;
-                case NOT_DISPLAY:
-                    Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
-                    paused = true;
-                    break;
-                case ROTATE_R:
-                    rotate(true);
-                    break;
-                case ROTATE_L:
-                    rotate(false);
-                    break;
-                case SCALE_UP:
-                    scale(true);
-                    break;
-                case SCALE_DOWN:
-                    scale(false);
-                    break;
-            }
-        }
-    };
-    public static void verifyStoragePermissions(Activity activity) {
-        int permission = ActivityCompat.checkSelfPermission(activity,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE);
-        if (permission != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(activity, PERMISSIONS_STORAGE,
-                    REQUEST_EXTERNAL_STORAGE);
-        }
-    }
-    private void runAndShow() {
-        mCurPicPath = getPathByUri(mUri);
-        Log.d(TAG, "runAndShow mCurPicPath " + mCurPicPath);
-        if (TextUtils.isEmpty(mCurPicPath) || !new File(mCurPicPath).canRead()) {
-            mUIHandler.sendEmptyMessage(NOT_DISPLAY);
-            Log.e(TAG, "runAndShow pic path empty!");
-            return;
-        }
-        int ret = mImageplayer.setDataSource(mCurPicPath);
-
-        Log.d(TAG,"runAndShow return"+ret);
-        if (ret != 0) {
-            mUIHandler.sendEmptyMessageDelayed(NOT_DISPLAY, MSG_DELAY_TIME);
-        }
-        while (mImageplayer != null && !mImageplayer.isPreparedForImage()) {
-            //here wait for surface ready
-            try{
-                Thread.currentThread().sleep(10);
-            }catch(Exception ex) {
-
-            }
-            if (paused)
-                break;
-            if (ret != 0) {
-                ret = mImageplayer.setDataSource(mCurPicPath);
-            }
-        }
-        mUIHandler.removeMessages(NOT_DISPLAY);
-        adjustViewSize(DEFAULT_DEGREE, SCALE_ORI);
-        mImageplayer.show();
-
-    }
-
-    public void adjustViewSize(int degree,float scale) {
-        runOnUiThread(()->{
-            int srcW = mImageplayer.getBmpWidth();
-            int srcH = mImageplayer.getBmpHeight();
-            if ((degree / ROTATION_DEGREE) % 2 != 0) {
-                srcW = mImageplayer.getBmpHeight();
-                srcH = mImageplayer.getBmpWidth();
-                if (srcW > mImageplayer.getMxW() || srcH > mImageplayer.getMxH()) {
-                    float scaleDown = 1.0f*mImageplayer.getMxW()/srcW < 1.0f*mImageplayer.getMxH()/srcH ?
-                                           1.0f* mImageplayer.getMxW()/srcW : 1.0f*mImageplayer.getMxH()/srcH;
-                    srcW = (int)Math.ceil(scaleDown*srcW);
-                    srcH = (int)Math.ceil(scaleDown*srcH);
-                }
-            }
-            if (scale  != SCALE_ORI) {
-                srcW *= scale;
-                srcH *= scale;
-            }
-            srcW = srcW > mImageplayer.getMxW()?mImageplayer.getMxW():srcW;
-            srcH = srcH > mImageplayer.getMxH()?mImageplayer.getMxH():srcH;
-            Log.d(TAG,"show setFixedSize"+srcW+"x"+srcH);
-            //srcW = (int)Math.ceil(srcW/mImageplayer.getScaleVideo());
-            //srcH = (int)Math.ceil(srcH/mImageplayer.getScaleVideo());
-            int frameWidth = ((srcW + 1) & ~1);
-            int frameHeight = ((srcH + 1) & ~1);
-            Log.d(TAG,"show setFixedSize after scale to surface"+frameWidth+"x"+frameHeight);
-            mSurfaceView.getHolder().setFixedSize(frameWidth,frameHeight);
-        });
-    }
     public final BroadcastReceiver mUsbScanner = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -252,6 +144,129 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             }
         }
     };
+    private ArrayList<Uri> mImageList = new ArrayList<Uri>();
+    private ArrayList<String> mPathList = new ArrayList<String>();
+    private String mCurrenAXIS;
+    private int mSlideIndex;
+    private int mDegress;
+    private LoadImageTask mLoadImageTask;
+    private Uri mUri;
+    private boolean paused = false;
+    private Handler mUIHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case DISMISS_PROGRESSBAR:
+                    break;
+                case DISMISS_MENU:
+                    displayMenu(false);
+                    break;
+                case NOT_DISPLAY:
+                    Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+                    paused = true;
+                    break;
+                case ROTATE_R:
+                    rotate(true);
+                    break;
+                case ROTATE_L:
+                    rotate(false);
+                    break;
+                case SCALE_UP:
+                    scale(true);
+                    break;
+                case SCALE_DOWN:
+                    scale(false);
+                    break;
+                case SHOW_LEFT_ANIM:
+                    showLeft();
+                    break;
+                case SHOW_RIGHT_ANIM:
+                    showRight();
+                    break;
+                case SHOW_TOP_ANIM:
+                    showTop();
+                    break;
+                case SHOW_BOTTOM_ANIM:
+                    showBottom();
+                    break;
+            }
+        }
+    };
+
+    public static void verifyStoragePermissions(Activity activity) {
+        int permission = ActivityCompat.checkSelfPermission(activity,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        if (permission != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(activity, PERMISSIONS_STORAGE,
+                    REQUEST_EXTERNAL_STORAGE);
+        }
+    }
+
+    private static int[] getSplitStr(String originalStr, String splitStr) {
+        String[] vals = originalStr.split(splitStr);
+        if (vals == null) return null;
+        int[] intval = new int[vals.length];
+        for (int i = 0; i < vals.length; i++) {
+            intval[i] = Integer.valueOf(vals[i]);
+        }
+        return intval;
+    }
+
+    private static Size getWH(String videoaxis, String windowaxis) {
+        int[] videos = getSplitStr(videoaxis, "\\s+");
+        if (videos.length == 4) {
+            if (videos[2] == -1 && videos[3] == -1) {
+                videos = getSplitStr(windowaxis, "\\s+");
+            }
+            Size wh = new Size(videos[2], videos[3]);
+            return wh;
+        }
+        return new Size(3840, 2160);
+    }
+
+    private void runAndShow() {
+        mCurPicPath = getPathByUri(mUri);
+        Log.d(TAG, "runAndShow mCurPicPath " + mCurPicPath);
+        if (TextUtils.isEmpty(mCurPicPath) || !new File(mCurPicPath).canRead()) {
+            mUIHandler.sendEmptyMessage(NOT_DISPLAY);
+            Log.e(TAG, "runAndShow pic path empty!");
+            return;
+        }
+        if (!mImageplayer.setDataSource(mCurPicPath)) {
+            mUIHandler.sendEmptyMessageDelayed(NOT_DISPLAY, MSG_DELAY_TIME);
+        } else {
+            mImageplayer.setPrepareListener(this);
+        }
+
+    }
+
+    public void adjustViewSize(int degree, float scale) {
+        runOnUiThread(() -> {
+            int srcW = mImageplayer.getBmpWidth();
+            int srcH = mImageplayer.getBmpHeight();
+            if ((degree / ROTATION_DEGREE) % 2 != 0) {
+                srcW = mImageplayer.getBmpHeight();
+                srcH = mImageplayer.getBmpWidth();
+                if (srcW > mImageplayer.getMxW() || srcH > mImageplayer.getMxH()) {
+                    float scaleDown = 1.0f * mImageplayer.getMxW() / srcW < 1.0f * mImageplayer.getMxH() / srcH ?
+                            1.0f * mImageplayer.getMxW() / srcW : 1.0f * mImageplayer.getMxH() / srcH;
+                    srcW = (int) Math.ceil(scaleDown * srcW);
+                    srcH = (int) Math.ceil(scaleDown * srcH);
+                }
+            }
+            if (scale != SCALE_ORI) {
+                srcW *= scale;
+                srcH *= scale;
+            }
+            srcW = srcW > mImageplayer.getMxW() ? mImageplayer.getMxW() : srcW;
+            srcH = srcH > mImageplayer.getMxH() ? mImageplayer.getMxH() : srcH;
+            Log.d(TAG, "show setFixedSize" + srcW + "x" + srcH);
+            int frameWidth = ((srcW + 1) & ~1);
+            int frameHeight = ((srcH + 1) & ~1);
+            Log.d(TAG, "show setFixedSize after scale to surface" + frameWidth + "x" + frameHeight);
+            mSurfaceView.getHolder().setFixedSize(frameWidth, frameHeight);
+        });
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -294,17 +309,18 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             String path = getDocumentPath(this, uri);
             return path;
         }
-        try{
+        try {
             ParcelFileDescriptor fileDescriptor = getContentResolver().openFileDescriptor(uri, "r");
             FileDescriptor fd = fileDescriptor.getFileDescriptor();
             Method method = Class.forName(ParcelFileDescriptor.class.getName())
                     .getDeclaredMethod("getFile", FileDescriptor.class);
             method.setAccessible(true);
-            File file = (File)method.invoke(fileDescriptor,fd);
+            File file = (File) method.invoke(fileDescriptor, fd);
             if (file != null && file.canRead()) {
                 return file.getAbsolutePath();
             }
-        }catch(Exception ex) { }
+        } catch (Exception ex) {
+        }
         String[] proj = {MediaStore.Images.Media.DATA};
         Cursor cursor = managedQuery(uri, proj, null, null, null);
         if (cursor != null) {
@@ -312,11 +328,11 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
                 int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
                 cursor.moveToFirst();
                 return cursor.getString(column_index);
-            }catch (Exception ex) {
+            } catch (Exception ex) {
                 String possiblePath = "";
                 if (!uriStr.isEmpty() && uriStr.contains(STORAGE_ROOT)) {
                     int pos = uriStr.indexOf(STORAGE_ROOT);
-                    return uriStr.substring(pos,uriStr.length());
+                    return uriStr.substring(pos);
                 }
             }
         }
@@ -374,10 +390,10 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     }
 
     private void initViews() {
-        mRotateLLay = (LinearLayout) findViewById(R.id.ll_rotate_r);
-        mRotateRlay = (LinearLayout) findViewById(R.id.ll_rotate_l);
-        mScaleUp = (LinearLayout) findViewById(R.id.ll_scale_up);
-        mScaleDown = (LinearLayout) findViewById(R.id.ll_scale_down);
+        mRotateLLay = findViewById(R.id.ll_rotate_r);
+        mRotateRlay = findViewById(R.id.ll_rotate_l);
+        mScaleUp = findViewById(R.id.ll_scale_up);
+        mScaleDown = findViewById(R.id.ll_scale_down);
 
         mRotateRlay.setOnClickListener(this);
         mRotateLLay.setOnClickListener(this);
@@ -389,18 +405,16 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         mScaleUp.setOnFocusChangeListener(this);
         mScaleDown.setOnFocusChangeListener(this);
 
-        mSurfaceView = (SurfaceView) findViewById(R.id.surfaceview_show_picture);
+        mSurfaceView = findViewById(R.id.surfaceview_show_picture);
         mSurfaceView.getHolder().addCallback(new SurfaceCallback());
         mSurfaceView.getHolder().setKeepScreenOn(true);
         mSurfaceView.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         mSurfaceView.getHolder().setFormat(258);
         mSurfaceView.setFocusable(true);
         mSurfaceView.setFocusableInTouchMode(true);
-
-        mMenu = (RelativeLayout) findViewById(R.id.menu_layout);
-        //mMenu.setVisibility(View.GONE);
-        mLoadingProgress = (ProgressBar) findViewById(R.id.loading_image);
-        //mLoadingProgress.setVisibility(View.GONE);
+        mSurfaceView.setOnClickListener(this);
+        mMenu = findViewById(R.id.menu_layout);
+        mLoadingProgress = findViewById(R.id.loading_image);
         mOutAnimation = AnimationUtils.loadAnimation(this,
                 R.anim.menu_and_left_out);
         mLeftInAnimation = AnimationUtils.loadAnimation(this, R.anim.left_in);
@@ -409,7 +423,8 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (event.getRepeatCount() == 0 && (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
+        Log.d(TAG, "onKeyDown" + keyCode + "--" + mMenu.getVisibility() + "--" + mDegress);
+        if ((keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
             if (mMenu.getVisibility() == View.VISIBLE) {
                 mUIHandler.removeMessages(DISMISS_MENU);
                 mUIHandler.sendEmptyMessage(DISMISS_MENU);
@@ -426,6 +441,46 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
                 FullImageActivity.this.finish();
             }
 
+            return true;
+        } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && mMenu.getVisibility() != View.VISIBLE) {
+            if (mDegress % 360 != 0) {
+                return true;
+            }
+            mUIHandler.removeMessages(SHOW_LEFT_ANIM);
+            mUIHandler.sendEmptyMessage(SHOW_LEFT_ANIM);
+            if (mImageplayer.setTranslate(mDegress, mScale, mScale, 1) < 0) {
+                Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+            }
+            return true;
+        } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP && mMenu.getVisibility() != View.VISIBLE) {
+            if (mDegress % 360 != 0) {
+                return true;
+            }
+            mUIHandler.removeMessages(SHOW_TOP_ANIM);
+            mUIHandler.sendEmptyMessage(SHOW_TOP_ANIM);
+            if (mImageplayer.setTranslate(mDegress, mScale, mScale, 0) < 0) {
+                Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+            }
+            return true;
+        } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && mMenu.getVisibility() != View.VISIBLE) {
+            if (mDegress % 360 != 0) {
+                return true;
+            }
+            mUIHandler.removeMessages(SHOW_RIGHT_ANIM);
+            mUIHandler.sendEmptyMessage(SHOW_RIGHT_ANIM);
+            if (mImageplayer.setTranslate(mDegress, mScale, mScale, 3) < 0) {
+                Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+            }
+            return true;
+        } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && mMenu.getVisibility() != View.VISIBLE) {
+            if (mDegress % 360 != 0) {
+                return true;
+            }
+            mUIHandler.removeMessages(SHOW_BOTTOM_ANIM);
+            mUIHandler.sendEmptyMessage(SHOW_BOTTOM_ANIM);
+            if (mImageplayer.setTranslate(mDegress, mScale, mScale, 2) < 0) {
+                Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+            }
             return true;
         }
 
@@ -456,9 +511,23 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         } else {
             mDegress -= ROTATION_DEGREE;
         }
-        Log.d(TAG, "rotate degree " + mDegress+" mScale"+mScale);
-        adjustViewSize(mDegress,mScale);
-        mImageplayer.setRotateScale(mDegress % 360, mScale, mScale);
+        mDegress = (mDegress + 360) % 360;
+        Log.d(TAG, "rotate degree " + mDegress + " mScale" + mScale);
+        adjustViewSize(mDegress, mScale);
+        if (mScale == SCALE_ORI) {
+            mImageplayer.setRotate(mDegress);
+        } else {
+            mImageplayer.setRotateScale(mDegress, mScale, mScale);
+        }
+    }
+
+    @Override
+    public void Prepared() {
+        Log.d(TAG, "prepared");
+        mUIHandler.removeMessages(NOT_DISPLAY);
+        mImageplayer.setPrepareListener(null);
+        adjustViewSize(DEFAULT_DEGREE, SCALE_ORI);
+        mImageplayer.show();
     }
 
     private void scale(boolean scaleUp) {
@@ -472,7 +541,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         } else {
             mScale -= SCALE_RATIO;
         }
-        mScale = (float)(Math.round(mScale*100)*1.0/100);
+        mScale = (float) (Math.round(mScale * 100) * 1.0 / 100);
         Log.d(TAG, "scale " + mScale);
 
         // value like 1.999999 could continue to be enlarged or else
@@ -488,11 +557,12 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             mScale = SCALE_MIN + SCALE_RATIO;
             return;
         }
-        adjustViewSize(mDegress,mScale);
+        adjustViewSize(mDegress, mScale);
         if (mImageplayer != null) {
+            mDegress = (mDegress + 360) % 360;
             if (mDegress % 360 != 0) {
                 Log.d(TAG, "scale has rotation with " + mDegress);
-                mImageplayer.setRotateScale(mDegress % 360, mScale, mScale);
+                mImageplayer.setRotateScale(mDegress, mScale, mScale);
             } else {
                 mImageplayer.setScale(mScale, mScale);
             }
@@ -500,23 +570,18 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         }
     }
 
-
     @Override
     protected void onStart() {
         super.onStart();
         paused = false;
-        Log.d(TAG,"onStart");
-        if (null == mImageplayer) {
-            mImageplayer = new ImagePlayer(FullImageActivity.this.getApplicationContext());
-        }
+        Log.d(TAG, "onStart");
+        mImageplayer = ImagePlayer.getInstance();
+        mImageplayer.initParam();
         mLoadImageTask = new LoadImageTask();
         mLoadImageTask.execute();
 
         mUIHandler.sendEmptyMessageDelayed(DISMISS_MENU, DISPLAY_MENU_TIME);
-        Log.d(TAG,"mImageplayer "+mImageplayer.isPlayed()+" "+mImageplayer.initParam());
-        if (mImageplayer != null && mImageplayer.isPlayed() && mImageplayer.initParam() == 0) {
-            adjustViewSize(mDegress,mScale);
-        }
+        mRotateRlay.requestFocus();
     }
 
     @Override
@@ -582,6 +647,43 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         }
     }
 
+    private void showLeft() {
+        final ImageView left = findViewById(R.id.left_array);
+        if (left != null) {
+            left.clearAnimation();
+            AnimationSet animationSet = (AnimationSet) AnimationUtils.loadAnimation(this, R.anim.left_anim);
+            left.startAnimation(animationSet);
+        }
+    }
+
+    private void showRight() {
+        ImageView right = findViewById(R.id.right_array);
+        if (right != null) {
+            right.clearAnimation();
+            Log.d("TAG", "right is null> no");
+            AnimationSet animationSet = (AnimationSet) AnimationUtils.loadAnimation(this, R.anim.right_anim);
+            right.startAnimation(animationSet);
+        }
+    }
+
+    private void showTop() {
+        ImageView top = findViewById(R.id.top_array);
+        if (top != null) {
+            top.clearAnimation();
+            AnimationSet animationSet = (AnimationSet) AnimationUtils.loadAnimation(this, R.anim.top_anim);
+            top.startAnimation(animationSet);
+        }
+    }
+
+    private void showBottom() {
+        ImageView bottom = findViewById(R.id.bottom_array);
+        if (bottom != null) {
+            bottom.clearAnimation();
+            AnimationSet animationSet = (AnimationSet) AnimationUtils.loadAnimation(this, R.anim.bottom_anim);
+            bottom.startAnimation(animationSet);
+        }
+    }
+
     private class SurfaceCallback implements SurfaceHolder.Callback {
         @Override
         public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
@@ -591,13 +693,16 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         public void surfaceCreated(SurfaceHolder holder) {
             if (mImageplayer != null) {
                 Log.d(TAG, "surfaceCreated setDisplay");
-                mImageplayer.setDisplay(holder);
+                mImageplayer.bindSurface(holder);
             }
         }
 
         @Override
         public void surfaceDestroyed(SurfaceHolder holder) {
-            Log.v(TAG, "surfaceDestroyed");
+            if (mImageplayer != null) {
+                Log.d(TAG, "surfaceCreated surfaceDestroyed");
+                mImageplayer.stop();
+            }
         }
     }
 
@@ -636,25 +741,5 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
                 mLoadingProgress.setVisibility(View.GONE);
             }
         }
-    }
-    private static int[] getSplitStr(String originalStr,String splitStr){
-        String[] vals = originalStr.split(splitStr);
-        if (vals == null) return null;
-        int[] intval = new int[vals.length];
-        for (int i=0; i<vals.length; i++) {
-            intval[i] = Integer.valueOf(vals[i]);
-        }
-        return intval;
-    }
-    private static Size getWH(String videoaxis,String windowaxis) {
-        int[] videos = getSplitStr(videoaxis, "\\s+");
-        if (videos.length == 4) {
-            if (videos[2] == -1 && videos[3] == -1) {
-                videos = getSplitStr(windowaxis, "\\s+");
-            }
-            Size wh = new Size(videos[2], videos[3]);
-            return wh;
-        }
-        return new Size(3840,2160);
     }
 }

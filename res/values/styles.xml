@@ -23,11 +23,8 @@
 
     </style>
 
-    <!-- Application theme.
-    <item name="android:windowBackground">@null</item>
-        <item name="android:windowDisablePreview">true</item>
-         -->
     <style name="AppTheme" parent="AppBaseTheme">
+        <item name="android:windowBackground">#FF000000</item>
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowDisablePreview">true</item>
         <item name="android:windowFrame">@null</item>

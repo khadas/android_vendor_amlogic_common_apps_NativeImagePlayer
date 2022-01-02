@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 The Android Open Source Project
+ * Copyright (C) 2011 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,15 +12,44 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *  @author   Tellen Yu
+ *  @version  1.0
+ *  @date     2015/04/07
+ *  @par function description:
+ *  - 1 transparent the video player
  */
+
+#define LOG_NDEBUG 0
+#define LOG_TAG "SurfaceOverlay-jni"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <nativehelper/JNIHelp.h>
+#include <jni.h>
+#include <hwui/Bitmap.h>
+#include <SkAndroidCodec.h>
+#include <SkBitmap.h>
+#include <SkCanvas.h>
+#include <SkData.h>
+#include <SkSurface.h>
+#include <utils/Log.h>
+#include <utils/KeyedVector.h>
+#include <android_runtime/AndroidRuntime.h>
+#include <android_runtime/android_view_Surface.h>
+#include <nativehelper/scoped_local_ref.h>
+#include <nativehelper/scoped_utf_chars.h>
+#include <android/native_window.h>
+#include <gui/Surface.h>
+#include <gui/IGraphicBufferProducer.h>
+#include <ui/GraphicBuffer.h>
+#include <hardware/gralloc1.h>
+#include <cutils/ashmem.h>
+
 
 #ifndef CORE_JNI_HELPERS
 #define CORE_JNI_HELPERS
-
-#include <nativehelper/JNIHelp.h>
-#include <nativehelper/scoped_local_ref.h>
-#include <nativehelper/scoped_utf_chars.h>
-#include <android_runtime/AndroidRuntime.h>
 
 // Host targets (layoutlib) do not differentiate between regular and critical native methods,
 // and they need all the JNI methods to have JNIEnv* and jclass/jobject as their first two arguments.
@@ -34,6 +63,8 @@
 #define CRITICAL_JNI_PARAMS_COMMA JNIEnv*, jclass,
 #endif
 
+#define CHECK assert
+#define CHECK_EQ(a,b) CHECK((a)==(b))
 namespace android {
 
 // Defines some helpful functions.
@@ -107,3 +138,5 @@ static inline std::string getStringField(JNIEnv* env, jobject obj, jfieldID fiel
 }  // namespace android
 
 #endif  // CORE_JNI_HELPERS
+
+

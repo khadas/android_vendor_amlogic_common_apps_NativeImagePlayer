@@ -37,6 +37,7 @@ public:
     size_t getSize(){
         return mSize;
     }
+    void releaseMem();
     uint8_t* getmem() {
         return mData;
     }

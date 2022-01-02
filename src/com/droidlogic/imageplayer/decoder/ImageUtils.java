@@ -14,7 +14,7 @@
  *See the License for the specific language governing permissions and
  *limitations under the License.
  ******************************************************************/
-package com.droidlogic.imageplayer;
+package com.droidlogic.imageplayer.decoder;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -31,6 +31,7 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.util.Size;
 import android.util.Log;
+
 import androidx.annotation.IdRes;
 import androidx.annotation.NonNull;
 
@@ -43,8 +44,6 @@ import java.util.List;
 public class ImageUtils {
     private static final String TAG = "ImageUtil";
     private Context mCtx;
-    public static final int FULLWIDTH = 1280;
-    public static final int FULLHEIGHT = 720;
 
     public ImageUtils(@NonNull Context context) {
         mCtx = context.getApplicationContext();
@@ -63,9 +62,6 @@ public class ImageUtils {
         private PostProcessor postProcessor = null;
         private int sizeIndex = -1;
         private int sampleSizeIndex = -1;
-        public Size getSize(){
-            return mSize;
-        }
         private ImageDecoder.OnHeaderDecodedListener mListener =
                 new ImageDecoder.OnHeaderDecodedListener() {
                     @Override
@@ -88,8 +84,11 @@ public class ImageUtils {
             this.source = source;
         }
 
+        public Size getSize() {
+            return mSize;
+        }
 
-        public Decoder roundCorners(final float roundX, final float roundY){
+        public Decoder roundCorners(final float roundX, final float roundY) {
             postProcessor = new PostProcessor() {
                 @Override
                 public int onPostProcess(@NonNull Canvas canvas) {
@@ -97,7 +96,7 @@ public class ImageUtils {
                     path.setFillType(Path.FillType.INVERSE_EVEN_ODD);
                     int width = canvas.getWidth();
                     int height = canvas.getHeight();
-                    path.addRoundRect(0 ,0, width, height, roundX, roundY
+                    path.addRoundRect(0, 0, width, height, roundX, roundY
                             , Path.Direction.CW);
                     Paint paint = new Paint();
                     paint.setAntiAlias(true);
@@ -147,16 +146,12 @@ public class ImageUtils {
                 @Override
                 public void onHeaderDecoded(@NonNull ImageDecoder decoder, @NonNull ImageDecoder.ImageInfo info, @NonNull ImageDecoder.Source source) {
                     mSize = info.getSize();
-                    Log.d(TAG,"onHeaderDecoded:"+mSize.getWidth()+"x"+mSize.getHeight()+" --"+width+"x"+height);
+                    Log.d(TAG, "onHeaderDecoded:" + mSize.getWidth() + "x" + mSize.getHeight() + " --" + width + "x" + height);
                     if (mSize.getWidth() > width || mSize.getHeight() > height) {
-                        double sx = width*1.0/mSize.getWidth() < height*1.0/mSize.getHeight() ?
-                                            width*1.0/mSize.getWidth() : height*1.0/mSize.getHeight();
-                        decoder.setTargetSize((int)(mSize.getWidth()*sx), (int)(mSize.getHeight()*sx));
-                        mSize = new Size((int)(mSize.getWidth()*sx), (int)(mSize.getHeight()*sx));
-                    }else {
-                        if (mSize.getWidth() > FULLWIDTH &&mSize.getHeight() > FULLHEIGHT) {
-                            decoder.setTargetSize(width,height);
-                        }
+                        double sx = width * 1.0 / mSize.getWidth() < height * 1.0 / mSize.getHeight() ?
+                                width * 1.0 / mSize.getWidth() : height * 1.0 / mSize.getHeight();
+                        decoder.setTargetSize((int) (mSize.getWidth() * sx), (int) (mSize.getHeight() * sx));
+                        mSize = new Size((int) (mSize.getWidth() * sx), (int) (mSize.getHeight() * sx));
                     }
                     decoder.setAllocator(ImageDecoder.ALLOCATOR_SHARED_MEMORY);
                 }

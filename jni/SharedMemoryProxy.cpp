@@ -34,6 +34,16 @@ SharedMemoryProxy::~SharedMemoryProxy()
         mData = nullptr;
     }
 }
+void SharedMemoryProxy::releaseMem(){
+    if (mData != nullptr) {
+        ALOGE("share memory release temp%p",this);
+        munmap(mData, mSize);
+        close(mAshmemFd);
+        mAshmemFd = -1;
+        mSize = -1;
+        mData = nullptr;
+    }
+}
 int SharedMemoryProxy::allocmem(int32_t capacityInBytes) {
     if (mAshmemFd > 0) {
         ALOGE("already allocate");

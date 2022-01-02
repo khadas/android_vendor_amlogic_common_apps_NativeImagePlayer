@@ -10,6 +10,7 @@
 #include <amlogic/am_gralloc_ext.h>
 #include <string>
 #include <vector>
+#include <math.h>
 #include "android-base/parseint.h"
 #include "android-base/properties.h"
 using namespace android;
@@ -18,6 +19,8 @@ using namespace android::bitmap;
 #define DEFAULT_HEIGHT 1080
 #define GRALLOC1_VIDEO 1ULL << 17
 #define PROPERTY "vendor.display-size"
+#define ODS_WIDTH_PROPERTY "ro.surface_flinger.max_graphics_width"
+#define ODS_HEIGHT_PROPERTY "ro.surface_flinger.max_graphics_height"
 sp<ANativeWindow> mNativeWindow;
 ImageOperator *imageplayer;
 JNIEnv *jnienv;
@@ -25,9 +28,18 @@ int fenceFd = -1;
 int mRotate = 0;
 int mFrameWidth = 0;
 int mFrameHeight = 0;
+int mOsdWidth = 0;
+int mOsdHeight = 0;
+int mLastWidth = 0;
+int mLastHeight = 0;
+int mLastTransform = 0;
+SharedMemoryProxy mMemory;
 static jfieldID mImagePlayer_ScreenWidth;
 static jfieldID mImagePlayer_ScreenHeight;
 static jfieldID mImagePlayer_VideoScale;
+
+extern void rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, uint8_t* yPlane,
+        uint8_t* crPlane, uint8_t* cbPlane, size_t chromaStep, size_t yStride, size_t chromaStride);
 static std::string& StringTrim(std::string &str)
 {
     if (str.empty()) {
@@ -64,28 +76,11 @@ static int StringSplit(std::vector<std::string>& dst, const std::string& src, co
 
     return nCount;
 }
-
+static int reRender(int32_t width, int32_t height, void *data, size_t inLen);
 static int render(int32_t width, int32_t height, void *data, size_t inLen);
-status_t nativeWindowDisconnect(ANativeWindow *surface, const char *reason) {
-    ALOGD("disconnecting from surface %p, reason %s", surface, reason);
-
-    status_t err = native_window_api_disconnect(surface, NATIVE_WINDOW_API_MEDIA);
-    ALOGE_IF(err != OK, "Failed to disconnect from surface %p, err %d", surface, err);
-
-    return err;
-}
 
 
-status_t nativeWindowConnect(ANativeWindow *surface, const char *reason) {
-    ALOGD("connecting to surface %p, reason %s", surface, reason);
-
-    status_t err = native_window_api_connect(surface, NATIVE_WINDOW_API_MEDIA);
-    ALOGE_IF(err != OK, "Failed to connect to surface %p, err %d", surface, err);
-
-    return err;
-}
-
-static int imageplayer_initialParam(JNIEnv *env, jobject entity) {
+static int initParam(JNIEnv *env, jobject entity) {
     ALOGE("imageplayer_initialParam");
     const std::string path(PROPERTY);
     const std::string v = android::base::GetProperty(path.c_str(), "1920x1080");
@@ -105,10 +100,9 @@ static int imageplayer_initialParam(JNIEnv *env, jobject entity) {
 
     }
 
-    jclass imageplayer_class = FindClassOrDie(env,"com/droidlogic/imageplayer/ImagePlayer");
-    mImagePlayer_ScreenWidth = GetFieldIDOrDie(env,imageplayer_class,"mScreenWidth","I");
-    mImagePlayer_ScreenHeight = GetFieldIDOrDie(env,imageplayer_class,"mScreenHeight","I");
-    mImagePlayer_VideoScale = GetFieldIDOrDie(env,imageplayer_class,"mScaleVideo","F");
+    jclass imageplayer_class = FindClassOrDie(env,"com/droidlogic/imageplayer/decoder/ImagePlayer");
+    jfieldID mImagePlayer_ScreenWidth = GetFieldIDOrDie(env,imageplayer_class,"mScreenWidth","I");
+    jfieldID mImagePlayer_ScreenHeight = GetFieldIDOrDie(env,imageplayer_class,"mScreenHeight","I");
     int lastHeight = env->GetIntField(entity,mImagePlayer_ScreenHeight);
     int lastWidth = env->GetIntField(entity,mImagePlayer_ScreenWidth);
     ALOGE("last solution %d x%d",lastWidth,lastHeight);
@@ -117,12 +111,13 @@ static int imageplayer_initialParam(JNIEnv *env, jobject entity) {
         ret = 0;
     }
     env->SetIntField(entity, mImagePlayer_ScreenWidth, mFrameWidth);
+    lastWidth = env->GetIntField(entity,mImagePlayer_ScreenWidth);
+    ALOGE("get width %d",lastWidth);
     env->SetIntField(entity, mImagePlayer_ScreenHeight,mFrameHeight);
-    env->SetFloatField(entity, mImagePlayer_VideoScale,(1.0*mFrameWidth/DEFAULT_WIDTH));
     ALOGE("after initial param");
     return ret;
 }
-static void  imageplayer_nativeInitSurface(JNIEnv *env, jclass clz, jobject jsurface){
+void bindSurface(JNIEnv *env, jobject imageobj, jobject jsurface){
     sp<IGraphicBufferProducer> new_st = NULL;
     jnienv = env;
     if (jsurface) {
@@ -152,27 +147,104 @@ static void  imageplayer_nativeInitSurface(JNIEnv *env, jclass clz, jobject jsur
         //CHECK_EQ(0,native_window_set_usage(mNativeWindow.get(), am_gralloc_get_video_decoder_full_buffer_usage()));
         CHECK_EQ(0,native_window_set_usage(mNativeWindow.get(), GRALLOC1_PRODUCER_USAGE_CAMERA));
         native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+        //CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_FREEZE));
         native_window_set_buffers_format(mNativeWindow.get(), HAL_PIXEL_FORMAT_YCrCb_420_SP);
-
+        native_window_set_auto_refresh(mNativeWindow.get(),true);
         imageplayer = new ImageOperator(env);
         imageplayer->setSurfaceSize(mFrameWidth,mFrameHeight);
     }
-  }
+}
+void unbindSurface(){
+    ALOGE("unbindSurface");
+    mRotate = 0;
+    mFrameWidth = 0;
+    mFrameHeight = 0;
+    mOsdWidth = 0;
+    mOsdHeight = 0;
+    mLastWidth = 0;
+    mLastHeight = 0;
+    mLastTransform = 0;
+    mMemory.releaseMem();
+    if (mNativeWindow != NULL) {
+      //  CHECK_EQ(OK,native_window_api_disconnect(mNativeWindow.get(), NATIVE_WINDOW_API_EGL));
+    }
+}
+static int rotate(JNIEnv *env, jclass clz,jint rotation, jboolean redraw) {
+    ALOGD("rotate  %d rotation/90=%d",rotation,rotation/90);
+    int transform = 0;
+    switch ((rotation/90) % 4) {
+        case 1: transform = HAL_TRANSFORM_ROT_90;break;
+        case 2: transform = HAL_TRANSFORM_ROT_180;break;
+        case 3: transform = HAL_TRANSFORM_ROT_270;break;
+        default: transform = 0;break;
+    }
+    ALOGD("rotate  %d %d",transform,rotation);
+    native_window_set_buffers_transform(mNativeWindow.get(), transform);
+    mLastTransform = transform;
+    if (redraw) {
+        SkBitmap bmp;
+        imageplayer->getSelf(bmp);
+        uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
+        int ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+        bmp.reset();
+    }
+    return 0;
+}
+static int reRender(int32_t width, int32_t height, void *data, size_t inLen) {
+    status_t err = NO_ERROR;
+    int ret = 0;
+    int frame_width = ((width + 1) & ~1);
+    int frame_height =((height + 1) & ~1);
+    ALOGE("render for frame size (%d x %d)-->(%d x %d)",width,height,frame_width,frame_height);
+    ANativeWindowBuffer *buf;
+    native_window_set_buffers_dimensions(mNativeWindow.get(), frame_width, frame_height);
+    status_t res =  mNativeWindow->dequeueBuffer(mNativeWindow.get(),&buf,&fenceFd);
+    if (res != OK) {
+        ALOGE("%s: Dequeue buffer failed: %s (%d)", __FUNCTION__, strerror(-res), res);
+        switch (res) {
+            case NO_INIT:
+                jniThrowException(jnienv, "java/lang/IllegalStateException",
+                    "Surface has been abandoned");
+                break;
+            default:
+                jniThrowRuntimeException(jnienv, "dequeue buffer failed");
+        }
+        return ret;
+    }
+    ALOGE("-->buf %d %d  %d %d %p",buf->format,buf->stride,buf->width, buf->height, buf);
 
+    GraphicBufferMapper &mapper = GraphicBufferMapper::get();
+    Rect bounds(frame_width,frame_height);
+    uint8_t* img = NULL;
 
-static int imageplayer_rotate(JNIEnv *env, jclass clz,jfloat ori) {
-    ALOGE("imageplayer_rotate %f",ori);
-    SkBitmap rotateBitmap;
-    ImageAlloc alloc;
-    imageplayer->setRotate(ori,rotateBitmap,alloc);
-    ALOGE("after rotate %d %d",rotateBitmap.width(),rotateBitmap.height());
-    uint8_t* pixelBuffer = (uint8_t*)rotateBitmap.getPixels();
-
-   // android_native_rect_t standard = {0,0,rotateBitmap.width(),rotateBitmap.height()};
-   // CHECK_EQ(OK, native_window_set_crop(mNativeWindow.get(), &standard));
-   // CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_NO_SCALE_CROP));
-    render(rotateBitmap.width(),rotateBitmap.height(),pixelBuffer,rotateBitmap.width()*rotateBitmap.height());
-    rotateBitmap.reset();
+    err =  mapper.lock(buf->handle,GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_NEVER,bounds,(void**)(&img));
+    if (err != NO_ERROR) return err;
+    if (ret != OK) {
+        ALOGE("%s: Error trying to lock output buffer fence: %s (%d)", __FUNCTION__,
+                strerror(-ret), ret);
+        return ret;
+    }
+    if (mMemory.getSize() > 0) {
+        ALOGE("recopy %d %d %d",mMemory.getSize(),buf->height, buf->stride);
+        memcpy(img,mMemory.getmem(),mMemory.getSize());
+    }else{
+        memset(img, 128, buf->height * buf->stride*3/2);
+       // memset(img, 0 , buf->stride *  buf->height);
+        uint8_t* yPlane = img;
+        uint8_t* uPlane = img + buf->stride*buf->height;
+        uint8_t* vPlane = uPlane + 1;
+        size_t chromaStep = 2;
+        size_t yStride = buf->stride;
+        size_t chromaStride =  buf->stride;
+        uint8_t* pixelBuffer = (uint8_t*)data;
+        imageplayer->rgbToYuv420(pixelBuffer, width, height, yPlane,
+                        uPlane, vPlane, chromaStep, yStride, chromaStride);
+        if (!mMemory.allocmem(buf->height * buf->stride*3/2)) {
+            memcpy(mMemory.getmem(),img,buf->height * buf->stride*3/2);
+        }
+    }
+    mapper.unlock(buf->handle);
+    mNativeWindow->queueBuffer(mNativeWindow.get(), buf,  -1);
     return 0;
 }
 static int render(int32_t width, int32_t height, void *data, size_t inLen) {
@@ -210,7 +282,6 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen) {
         return ret;
     }
     memset(img, 128, buf->height * buf->stride*3/2);
-    memset(img, 0 , buf->stride *  buf->height);
     uint8_t* yPlane = img;
     uint8_t* uPlane = img + buf->stride*buf->height;
     uint8_t* vPlane = uPlane + 1;
@@ -220,13 +291,18 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen) {
     uint8_t* pixelBuffer = (uint8_t*)data;
     imageplayer->rgbToYuv420(pixelBuffer, width, height, yPlane,
                     uPlane, vPlane, chromaStep, yStride, chromaStride);
+    mMemory.releaseMem();
+    if (!mMemory.allocmem(buf->height * buf->stride*3/2)) {
+        memcpy(mMemory.getmem(),img,buf->height * buf->stride*3/2);
+    }
     mapper.unlock(buf->handle);
     mNativeWindow->queueBuffer(mNativeWindow.get(), buf,  -1);
     return 0;
 }
+
 static jint nativeShow(JNIEnv *env, jclass clz, jlong jbitmap){
-    ALOGE("nativeShow %d %d %d",(mNativeWindow.get() == NULL),(imageplayer == NULL),(jbitmap <=0));
-    if (mNativeWindow.get() == NULL || imageplayer == NULL || jbitmap <=0 ) {
+    ALOGE("nativeShow %d %d %d",(mNativeWindow.get() == NULL),(imageplayer == NULL),(jbitmap ==0));
+    if (mNativeWindow.get() == NULL || imageplayer == NULL || jbitmap ==0 ) {
         return -1;
     }
 
@@ -237,76 +313,199 @@ static jint nativeShow(JNIEnv *env, jclass clz, jlong jbitmap){
     bitmap->getSkBitmap(&skbitmap);
     ALOGE("skColorType %d %d %d",bitmap->colorType(),bitmap->width(),bitmap->height());
     uint8_t* pixelBuffer = (uint8_t*)skbitmap.getPixels();
-
+    mLastWidth = 0;
+    mLastHeight = 0;
     return render(bitmap->width(),bitmap->height(),pixelBuffer,bitmap->width()*bitmap->height());
 
   }
-
-static jint imageplayer_rotateCrop(JNIEnv* env, jclass clz,jfloat ori, jint width, jint height) {
-    ALOGE("crop %f %d %d",ori,width,height);
-    ImageAlloc alloc;
-    SkBitmap bmp;
-    if (((int)ori) %360 == 0)
-        imageplayer->getSelf(bmp);
-    else
-        float scaleSize = imageplayer->setRotate(ori,bmp,alloc);
-    ALOGE("before crop after rotate %d %d[mFrame%dx%d]",bmp.width(),bmp.height(),mFrameWidth,mFrameHeight);
-
-    if (bmp.height() > mFrameHeight || bmp.width() > mFrameWidth) {
-        int hy = bmp.height()-height > 0 ? bmp.height()-height:height-bmp.height();
-        int wx = bmp.width()-width > 0 ? bmp.width()-width:width - bmp.width();
-        android_native_rect_t standard = {wx/2,hy/2,(bmp.width()+width)/2,(bmp.height()+height)/2};
-        ALOGE("----crop [%d %d %d %d]",wx/2,hy/2,(bmp.width()+width)/2,(bmp.height()+height)/2);
-        CHECK_EQ(OK, native_window_set_crop(mNativeWindow.get(), &standard));
-    } else {
-        int x = bmp.width()<width? 0:(bmp.width()-width)/2;
-        int y = bmp.height()<height? 0:(bmp.height()-height)/2;
-        android_native_rect_t standard = {x,y,x+width,y+height};
-        ALOGE("---->crop [%d %d %d %d]",x,y,x+width,y+height);
-        CHECK_EQ(OK, native_window_set_crop(mNativeWindow.get(), &standard));
+static jint rotateScaleCrop(JNIEnv* env, jclass clz,jint rotation, jfloat sx,jfloat sy, jboolean redraw) {
+    int transform = 0;
+    int ret = 0;
+    switch ((rotation/90) % 4) {
+        case 1: transform = HAL_TRANSFORM_ROT_90;break;
+        case 2: transform = HAL_TRANSFORM_ROT_180;break;
+        case 3: transform = HAL_TRANSFORM_ROT_270;break;
+        default: transform = 0;break;
     }
-    uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
-    int ret =  render(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+    native_window_set_buffers_transform(mNativeWindow.get(), transform);
+    SkBitmap bmp;
+    imageplayer->getSelf(bmp);
+    int compWidth = mFrameWidth;
+    int compHeight = mFrameHeight;
+    int height = (int)ceil(sy*bmp.height());
+    int width = (int)ceil(sx*bmp.width());
+    ALOGD("rotateScaleCrop  %d %d pic:[%dx%d] lastpic attr:[%dx%d]",transform,rotation,width,height,mLastWidth,mLastHeight);
+    if (bmp.width() <= mOsdWidth && bmp.height() <= mOsdHeight) {
+        compWidth = mOsdWidth;
+        compHeight = mOsdHeight;
+    }
+     ALOGD("compSize:  [%dx%d]",compWidth, compHeight);
+    if (width < compWidth && height < compHeight) {
+        CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_FREEZE));
+        native_window_set_buffers_dimensions(mNativeWindow.get(), width, height);
+        if (mLastWidth > compWidth || mLastHeight > compHeight) {
+            CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW));
+            native_window_set_crop(mNativeWindow.get(), NULL);
+            if (redraw) {
+                uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
+                ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+            }
+        }else {
+            if (mLastTransform != transform) {
+                CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW));
+                if (redraw) {
+                    uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
+                    ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+                }
+            }
+        }
+    } else {
+        float scaleStep = 1.0f*compHeight/height > 1.0f*compWidth/width ? 1.0f*compHeight/height : 1.0f*compWidth/width;
+        native_window_set_buffers_dimensions(mNativeWindow.get(), compHeight, compWidth);
+        CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW));
+        int left = (int)ceil((compWidth-scaleStep*compWidth)/2);
+        int right = (int)((compWidth+scaleStep*compWidth)/2);
+        int top = (int)ceil((compHeight-scaleStep*compHeight)/2);
+        int bottom = (int)ceil((compHeight+scaleStep*compHeight)/2);
+        android_native_rect_t standard = {left,top,right,bottom};
+        native_window_set_crop(mNativeWindow.get(), &standard);
+        ALOGE("rotateScaleCrop  [%d %d]%f [%d %d %d %d]",bmp.width(),bmp.height(),scaleStep,left,top,right,bottom);
+        if (redraw) {
+            uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
+            ret =  reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+        }
+    }
     bmp.reset();
+    mLastWidth = width;
+    mLastHeight = height;
+    mLastTransform = transform;
     return ret;
 }
 
-  static jint imageplayer_nativeScale(JNIEnv *env, jclass clz,jfloat sx,jfloat sy,jlong jbitmap) {
+
+  static jint nativeScale(JNIEnv *env, jclass clz,jfloat sx,jfloat sy,jboolean redraw) {
+    SkBitmap bmp;
     int ret = 0;
-    ALOGE("nativeScale %f %f",sx,sy);
-    if (sx > 1.0) {
-        android_native_rect_t standard = {0,0,static_cast<int>(mFrameWidth/sx),static_cast<int>(mFrameHeight/sy)};
-        CHECK_EQ(OK, native_window_set_crop(mNativeWindow.get(), &standard));
-    }else {
-        CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_FREEZE));
-       // android_native_rect_t standard = {0,0,static_cast<int>(mFrameWidth*sx),static_cast<int>(mFrameHeight*sy)};
-        //CHECK_EQ(OK, native_window_set_crop(mNativeWindow.get(), &standard));
+    imageplayer->getSelf(bmp);
+    int compWidth = mFrameWidth;
+    int compHeight = mFrameHeight;
+    int height = (int)ceil(sy*bmp.height());
+    int width = (int)ceil(sx*bmp.width());
 
+    if (bmp.width() <= mOsdWidth && bmp.height() <= mOsdHeight) {
+        compWidth = mOsdWidth;
+        compHeight = mOsdHeight;
     }
-    SkBitmap skbitmap;
-    Bitmap* bitmap = reinterpret_cast<Bitmap*>(jbitmap);
-
-    bitmap->getSkBitmap(&skbitmap);
-    ALOGE("=====skColorType %d %d %d",bitmap->colorType(),bitmap->width(),bitmap->height());
-    uint8_t* pixelBuffer = (uint8_t*)skbitmap.getPixels();
-
-    return render(bitmap->width(),bitmap->height(),pixelBuffer,bitmap->width()*bitmap->height());
+    if (width < compWidth && height < compHeight) {
+        CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_FREEZE));
+        native_window_set_buffers_dimensions(mNativeWindow.get(), width, height);
+        if (mLastWidth > compWidth || mLastHeight > compHeight) {
+            CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW));
+            if (redraw) {
+                uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
+                native_window_set_crop(mNativeWindow.get(), NULL);
+                ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+            }
+        }
+    } else {
+        float scaleStep = 1.0f*compHeight/height > 1.0f*compWidth/width ? 1.0f*compHeight/height : 1.0f*compWidth/width;
+        native_window_set_buffers_dimensions(mNativeWindow.get(), compHeight, compWidth);
+        CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW));
+        int left = (int)ceil((compWidth-scaleStep*compWidth)/2);
+        int right = (int)((compWidth+scaleStep*compWidth)/2);
+        int top = (int)ceil((compHeight-scaleStep*compHeight)/2);
+        int bottom = (int)ceil((compHeight+scaleStep*compHeight)/2);
+        android_native_rect_t standard = {left,top,right,bottom};
+        native_window_set_crop(mNativeWindow.get(), &standard);
+        ALOGE("nativeScale [%d %d %d %d] %d",scaleStep,left,top,right,bottom);
+        if (redraw) {
+            uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
+            ret =  reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+        }
+    }
+    bmp.reset();
+    mLastWidth = width;
+    mLastHeight = height;
+    return ret;
 }
-static void imageplayer_release(JNIEnv *env, jclass clz){
-    //CHECK_EQ(OK,native_window_api_disconnect(mNativeWindow.get(), NATIVE_WINDOW_API_EGL));
+static int transform(JNIEnv *env, jclass clz, jint rotation, jfloat sx, jfloat sy,
+                jint t,jint b, jint l,jint r,jint gap, jboolean redraw) {
+    int ret = 0;
+
+    //native_window_set_buffers_transform(mNativeWindow.get(), transform);
+    SkBitmap bmp;
+    imageplayer->getSelf(bmp);
+    int height = (int)ceil(sy*bmp.height());
+    int width = (int)ceil(sx*bmp.width());
+    ALOGE("transform heightxwidth [%d x%d] %f",height,width,sy);
+
+    int compWidth = mFrameWidth;
+    int compHeight = mFrameHeight;
+    if (bmp.width() <= mOsdWidth && bmp.height() <= mOsdHeight) {
+        compWidth = mOsdWidth;
+        compHeight = mOsdHeight;
+    }
+    if (height < compWidth && width < compHeight) {
+        return -1;
+    }
+
+    ALOGE("transform Rotate %d [%d x%d]",rotation,compWidth,compHeight);
+    float scaleStep = 1.0f*compHeight/height > 1.0f*compWidth/width ? 1.0f*compHeight/height : 1.0f*compWidth/width;
+    native_window_set_buffers_dimensions(mNativeWindow.get(), compHeight, compWidth);
+    CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW));
+    int left = (int)ceil((compWidth-scaleStep*compWidth)/2);
+    int right = (int)((compWidth+scaleStep*compWidth)/2);
+    int top = (int)ceil((compHeight-scaleStep*compHeight)/2);
+    int bottom = (int)ceil((compHeight+scaleStep*compHeight)/2);
+    int widthCrop = right - left;
+    int heightCrop = bottom - top;
+    ALOGE("transform from %f [%d %d %d %d] axis[ %d %d %d %d]",scaleStep,top,bottom,left,right,t,b,l,r);
+    left = (left+ gap*l);
+    right = (right + gap*r);
+    top = (top + gap*t);
+    bottom = (bottom + gap*b);
+    if (left < 0 && (left+gap) > 0) {
+        left = 0;
+        right = left+widthCrop;
+        ret = -1;
+    }
+    if (top < 0 && (top+gap) > 0) {
+        top = 0;
+        bottom = top+heightCrop;
+        ret = -1;
+    }
+    if (right > compWidth) {
+        right = compWidth;
+        left = right - widthCrop;
+        ret = -1;
+    }
+    if (bottom > compHeight) {
+        bottom = compHeight;
+        top = bottom - heightCrop;
+        ret = -1;
+    }
+    android_native_rect_t standard = {left,top,right,bottom};
+    native_window_set_crop(mNativeWindow.get(), &standard);
+    ALOGE("transform to [%d %d %d %d] %d ",top,bottom,left,right,ret);
+    if (redraw) {
+        uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
+        reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+    }
+    bmp.reset();
+    return ret;
 }
 static const JNINativeMethod gImagePlayerMethod[] = {
-    {"initParam",           "()I",     (void*)imageplayer_initialParam},
-    {"nativeInitSurface",                "(Landroid/view/Surface;)V",          (void*)imageplayer_nativeInitSurface },
+    {"initParam",           "()I",     (void*)initParam},
+    {"bindSurface",           "(Landroid/view/Surface;)V",          (void*)bindSurface },
+    {"nativeUnbindSurface",           "()V",          (void*)unbindSurface },
     {"nativeShow",                "(J)I",                               (void*)nativeShow },
-    {"nativeScale",               "(FFJ)I",                             (void*)imageplayer_nativeScale},
-    {"nativeRotate",              "(F)I",                               (void*)imageplayer_rotate},
-    {"nativeRotateCrop",                "(FII)I",                       (void*)imageplayer_rotateCrop},
-    {"nativeRelease",            "()V",                                (void*)imageplayer_release},
+    {"nativeScale",               "(FFZ)I",                             (void*)nativeScale},
+    {"nativeRotate",              "(IZ)I",                               (void*)rotate},
+    {"nativeRotateScaleCrop",           "(IFFZ)I",                      (void*)rotateScaleCrop},
+    {"nativeTransform",          "(IFFIIIII)I",                               (void*)transform},
+    };
 
-};
-
-int register_com_droidlogic_imageplayer_ImagePlayer(JNIEnv* env) {
-    return android::RegisterMethodsOrDie(env, "com/droidlogic/imageplayer/ImagePlayer", gImagePlayerMethod,
+int register_com_droidlogic_imageplayer_decoder_ImagePlayer(JNIEnv* env) {
+    return android::RegisterMethodsOrDie(env, "com/droidlogic/imageplayer/decoder/ImagePlayer", gImagePlayerMethod,
                                          NELEM(gImagePlayerMethod));
 }
