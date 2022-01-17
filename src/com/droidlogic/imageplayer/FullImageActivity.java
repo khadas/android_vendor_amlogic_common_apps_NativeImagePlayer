@@ -443,9 +443,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && mMenu.getVisibility() != View.VISIBLE) {
-            if (mDegress % 360 != 0) {
-                return true;
-            }
             mUIHandler.removeMessages(SHOW_LEFT_ANIM);
             mUIHandler.sendEmptyMessage(SHOW_LEFT_ANIM);
             if (mImageplayer.setTranslate(mDegress, mScale, mScale, 1) < 0) {
@@ -453,9 +450,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             }
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP && mMenu.getVisibility() != View.VISIBLE) {
-            if (mDegress % 360 != 0) {
-                return true;
-            }
             mUIHandler.removeMessages(SHOW_TOP_ANIM);
             mUIHandler.sendEmptyMessage(SHOW_TOP_ANIM);
             if (mImageplayer.setTranslate(mDegress, mScale, mScale, 0) < 0) {
@@ -463,9 +457,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             }
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && mMenu.getVisibility() != View.VISIBLE) {
-            if (mDegress % 360 != 0) {
-                return true;
-            }
             mUIHandler.removeMessages(SHOW_RIGHT_ANIM);
             mUIHandler.sendEmptyMessage(SHOW_RIGHT_ANIM);
             if (mImageplayer.setTranslate(mDegress, mScale, mScale, 3) < 0) {
@@ -473,9 +464,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             }
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && mMenu.getVisibility() != View.VISIBLE) {
-            if (mDegress % 360 != 0) {
-                return true;
-            }
             mUIHandler.removeMessages(SHOW_BOTTOM_ANIM);
             mUIHandler.sendEmptyMessage(SHOW_BOTTOM_ANIM);
             if (mImageplayer.setTranslate(mDegress, mScale, mScale, 2) < 0) {
