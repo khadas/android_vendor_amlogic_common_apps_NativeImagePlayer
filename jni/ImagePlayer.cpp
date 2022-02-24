@@ -14,7 +14,7 @@
 #include "android-base/parseint.h"
 #include "android-base/properties.h"
 using namespace android;
-using namespace android::bitmap;
+//using namespace android::bitmap;
 #define DEFAULT_WIDTH 1920
 #define DEFAULT_HEIGHT 1080
 #define GRALLOC1_VIDEO 1ULL << 17
@@ -152,6 +152,7 @@ void bindSurface(JNIEnv *env, jobject imageobj, jobject jsurface){
         native_window_set_auto_refresh(mNativeWindow.get(),true);
         imageplayer = new ImageOperator(env);
         imageplayer->setSurfaceSize(mFrameWidth,mFrameHeight);
+        native_window_set_buffer_count(mNativeWindow.get(),4);
     }
 }
 void unbindSurface(){
@@ -198,7 +199,8 @@ static int reRender(int32_t width, int32_t height, void *data, size_t inLen) {
     ALOGE("render for frame size (%d x %d)-->(%d x %d)",width,height,frame_width,frame_height);
     ANativeWindowBuffer *buf;
     native_window_set_buffers_dimensions(mNativeWindow.get(), frame_width, frame_height);
-    status_t res =  mNativeWindow->dequeueBuffer(mNativeWindow.get(),&buf,&fenceFd);
+    //status_t res =  mNativeWindow->dequeueBuffer(mNativeWindow.get(),&buf,&fenceFd);
+    status_t res =  native_window_dequeue_buffer_and_wait(mNativeWindow.get(),&buf);
     if (res != OK) {
         ALOGE("%s: Dequeue buffer failed: %s (%d)", __FUNCTION__, strerror(-res), res);
         switch (res) {
@@ -245,17 +247,20 @@ static int reRender(int32_t width, int32_t height, void *data, size_t inLen) {
     }
     mapper.unlock(buf->handle);
     mNativeWindow->queueBuffer(mNativeWindow.get(), buf,  -1);
+
     return 0;
 }
 static int render(int32_t width, int32_t height, void *data, size_t inLen) {
+    GraphicBufferMapper &mapper = GraphicBufferMapper::get();
     status_t err = NO_ERROR;
     int ret = 0;
     int frame_width = ((width + 1) & ~1);
     int frame_height =((height + 1) & ~1);
-    ALOGE("render for frame size (%d x %d)-->(%d x %d)",width,height,frame_width,frame_height);
+    ALOGE("render for frame size (%d x %d)-->(%d x %d)",ret,height,frame_width,frame_height);
     ANativeWindowBuffer *buf;
     native_window_set_buffers_dimensions(mNativeWindow.get(), frame_width, frame_height);
-    status_t res =  mNativeWindow->dequeueBuffer(mNativeWindow.get(),&buf,&fenceFd);
+    //status_t res =  mNativeWindow->dequeueBuffer(mNativeWindow.get(),&buf,&fenceFd);
+     status_t res =  native_window_dequeue_buffer_and_wait(mNativeWindow.get(),&buf);
     if (res != OK) {
         ALOGE("%s: Dequeue buffer failed: %s (%d)", __FUNCTION__, strerror(-res), res);
         switch (res) {
@@ -268,12 +273,9 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen) {
         }
         return ret;
     }
-    ALOGE("-->buf %d %d  %d %d %p",buf->format,buf->stride,buf->width, buf->height, buf);
-
-    GraphicBufferMapper &mapper = GraphicBufferMapper::get();
+    ALOGE("-->buf %d %d  %d %d %d",buf->format,buf->stride,buf->width, buf->height, fenceFd);
     Rect bounds(frame_width,frame_height);
     uint8_t* img = NULL;
-
     err =  mapper.lock(buf->handle,GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_NEVER,bounds,(void**)(&img));
     if (err != NO_ERROR) return err;
     if (ret != OK) {
@@ -296,7 +298,9 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen) {
         memcpy(mMemory.getmem(),img,buf->height * buf->stride*3/2);
     }
     mapper.unlock(buf->handle);
+
     mNativeWindow->queueBuffer(mNativeWindow.get(), buf,  -1);
+    img = NULL;
     return 0;
 }
 
@@ -308,7 +312,7 @@ static jint nativeShow(JNIEnv *env, jclass clz, jlong jbitmap){
 
     SkBitmap skbitmap;
     imageplayer->init(jbitmap,0,true) ;
-    Bitmap* bitmap = reinterpret_cast<Bitmap*>(jbitmap);
+    VBitmap* bitmap = reinterpret_cast<VBitmap*>(jbitmap);
 
     bitmap->getSkBitmap(&skbitmap);
     ALOGE("skColorType %d %d %d",bitmap->colorType(),bitmap->width(),bitmap->height());

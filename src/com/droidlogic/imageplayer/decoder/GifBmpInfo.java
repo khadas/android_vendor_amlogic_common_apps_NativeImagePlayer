@@ -27,6 +27,7 @@ public class GifBmpInfo extends BmpInfo {
 
     @Override
     public boolean setDataSrouce(String filePath) {
+        mNativeBmpPtr = 0;
         this.filePath = filePath;
         File file = new File(filePath);
         if (!file.canRead()) {
@@ -62,7 +63,11 @@ public class GifBmpInfo extends BmpInfo {
         }
         return false;
     }
-
+    @Override
+    public void release() {
+        nativeReleaseLastFrame(mDecoderPtr);
+    }
+    private native void nativeReleaseLastFrame(long decoder);
     private native long nativeSetGif(String filepath);
 
     private native long nativeDecodeFrame(long decoder, int frameIndex);

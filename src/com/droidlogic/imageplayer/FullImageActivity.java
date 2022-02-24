@@ -15,7 +15,7 @@
  *limitations under the License.
  ******************************************************************/
 package com.droidlogic.imageplayer;
-
+import android.widget.Button;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ContentUris;
@@ -117,6 +117,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private LinearLayout mScaleDown;
 
     private float mScale = SCALE_ORI;
+    private int mIndex;
 
     private String mCurPicPath;
     public final BroadcastReceiver mUsbScanner = new BroadcastReceiver() {
@@ -293,7 +294,80 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             finish();
             return;
         }
+        if (getProperties("rw.app.imageplayer.debug",false)) {
+            initNextButton();
+        }
         Log.d(TAG, "onCreate uri " + mUri + " scheme " + mUri.getScheme() + " path " + mUri.getPath());
+    }
+    private static boolean getProperties(String key, boolean def) {
+        boolean defVal = def;
+        try {
+            Class properClass = Class.forName("android.os.SystemProperties");
+            Method getMethod = properClass.getMethod("getBoolean",String.class,boolean.class);
+            defVal = (boolean)getMethod.invoke(null,key,def);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        } finally {
+            Log.d(TAG,"getProperty:"+key+" defVal:"+defVal);
+            return defVal;
+        }
+
+    }
+    private void initNextButton() {
+        mImageList = initFileList(mUri);
+        Log.v(TAG, "mImageList count:" + mImageList.size());
+        Button btn =(Button)findViewById(R.id.mNextButton);
+        btn.setVisibility(View.VISIBLE);
+        btn.setFocusable(true);
+        btn.setFocusableInTouchMode(true);
+        btn.requestFocus();
+        findViewById(R.id.mNextButton).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mLoadImageTask != null && mLoadImageTask.getStatus() != AsyncTask.Status.FINISHED) {
+                    return;
+                }
+                mIndex++;
+                if (mIndex>= mImageList.size()) {
+                    mIndex = 0;
+                }
+                mUri = mImageList.get(mIndex);
+
+                mImageplayer.release();
+                Log.v(TAG, "mImageplayer release");
+                mLoadImageTask = new LoadImageTask();
+                mLoadImageTask.execute();
+            }
+        });
+    }
+
+    private ArrayList<Uri> initFileList(Uri uri) {
+        ArrayList<Uri> items = new ArrayList();
+        String path = getPathByUri(uri);
+        File parentFile = new File(path).getParentFile();
+        if (parentFile == null) {
+            Log.e(TAG, "initPath parent unknown for " + uri.getPath());
+            return items;
+        }
+        String dirPath = parentFile.getAbsolutePath();
+        Log.d(TAG, "initPath dirPath:" + dirPath);
+
+        File targetDirFile = new File(dirPath);
+        if (!targetDirFile.exists() || !targetDirFile.isDirectory()) {
+            return items;
+        }
+        File[] targetFileList = targetDirFile.listFiles();
+        if (targetFileList == null || targetFileList.length == 0) {
+            return items;
+        }
+        for (File file : targetFileList) {
+            if (file.exists() && file.isFile()/* && (file.getName().toUpperCase().endsWith(".JPG") ||
+                    file.getName().toUpperCase().endsWith(".PNG")
+                    ||  file.getName().toUpperCase().endsWith(".JPEG"))*/) {
+                items.add(Uri.fromFile(file));
+            }
+        }
+        return items;
     }
 
     public String getPathByUri(Uri uri) {

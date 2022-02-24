@@ -28,7 +28,7 @@
 #include <unistd.h>
 #include <nativehelper/JNIHelp.h>
 #include <jni.h>
-#include <hwui/Bitmap.h>
+#include "Bitmap.h"
 #include <SkAndroidCodec.h>
 #include <SkBitmap.h>
 #include <SkCanvas.h>

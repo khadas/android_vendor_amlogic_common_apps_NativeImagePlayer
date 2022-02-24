@@ -47,6 +47,7 @@ public class ImagePlayer {
     }
 
     BmpInfo mBmpInfoHandler;
+    BmpInfo mLastBmpInfo;
     boolean bindSurface;
     private int mScreenHeight;
     private int mScreenWidth;
@@ -135,14 +136,15 @@ public class ImagePlayer {
     }
 
     public boolean setDataSource(String filePath) {
-
+        mWorkHandler.removeCallbacks(ShowFrame);
         mBmpInfoHandler = BmpInfoFractory.getBmpInfo(filePath);
         mBmpInfoHandler.setImagePlayer(this);
         if (!mBmpInfoHandler.setDataSrouce(filePath) && mBmpInfoHandler instanceof GifBmpInfo) {
-            mBmpInfoHandler.release();
+            mLastBmpInfo.release();
             mBmpInfoHandler = BmpInfoFractory.getStaticBmpInfo();
             mBmpInfoHandler.setImagePlayer(this);
             mBmpInfoHandler.setDataSrouce(filePath);
+            mLastBmpInfo = mBmpInfoHandler;
         }
         mWorkHandler.post(decodeRunnable);
         return true;

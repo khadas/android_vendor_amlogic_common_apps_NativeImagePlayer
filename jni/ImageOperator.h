@@ -97,7 +97,7 @@ class ImageOperator{
         int show(void* addr);
     private:
         int renderAndShow(SkBitmap *bmp, void* addr);
-
+        ~ImageOperator();
         ImageBitmap mbitmap;
         ScreenSize mscreen;
         JNIEnv *mEnv;

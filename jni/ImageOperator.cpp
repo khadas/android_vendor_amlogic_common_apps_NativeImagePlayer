@@ -29,7 +29,6 @@
 #include <unistd.h>
 #include <nativehelper/JNIHelp.h>
 #include <jni.h>
-#include <hwui/Bitmap.h>
 #include <jni/Bitmap.h>
 #include <SkAndroidCodec.h>
 #include <SkBitmap.h>
@@ -181,7 +180,7 @@ int ImageOperator::show(void *displayAddr) {
     }
     SkBitmap bitmap;
 
-    reinterpret_cast<Bitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&bitmap);
+    reinterpret_cast<VBitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&bitmap);
     return renderAndShow(&bitmap,displayAddr);
 }
 int ImageOperator::init(__int64_t bitmap,int defrotate,bool fillsurface) {
@@ -189,7 +188,7 @@ int ImageOperator::init(__int64_t bitmap,int defrotate,bool fillsurface) {
     mbitmap.mNativeHandler = bitmap;
     mbitmap.rotate = defrotate;
     SkBitmap skBitmap;
-    reinterpret_cast<Bitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&skBitmap);
+    reinterpret_cast<VBitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&skBitmap);
 
     ALOGE("bmp can get %d x %d",skBitmap.height(),skBitmap.width());
     mbitmap.height = skBitmap.height();
@@ -201,17 +200,29 @@ int ImageOperator::getSelf(SkBitmap& bmp) {
     if (mbitmap.mNativeHandler < 0 ) {
         return IMG_INVALIDE;
     }
-    reinterpret_cast<Bitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&bmp);
+    reinterpret_cast<VBitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&bmp);
     return RET_OK;
+}
+ImageOperator::~ImageOperator() {
+    if (mbitmap.mNativeHandler > 0 ) {
+        SkBitmap bmp;
+        reinterpret_cast<VBitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&bmp);
+        if (bmp.isNull())
+            bmp.reset();
+        mbitmap.mNativeHandler = 0;
+        mbitmap.height = 0;
+        mbitmap.width = 0;
+        mbitmap.fillsurface = false;
+    }
 }
 int ImageOperator::setRotate(float degrees,SkBitmap& rotateBitmap,ImageAlloc& alloc) {
     ALOGE("mbitmap.mNativeHandler %lld",mbitmap.mNativeHandler);
-    if (mbitmap.mNativeHandler < 0 ) {
+    /*if (mbitmap.mNativeHandler < 0 ) {
         return IMG_INVALIDE;
     }
     SkBitmap srcBitmap;
 
-    reinterpret_cast<Bitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&srcBitmap);
+    reinterpret_cast<VBitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&srcBitmap);
 
     int sourceWidth = srcBitmap.width();
     int sourceHeight = srcBitmap.height();
@@ -243,80 +254,64 @@ int ImageOperator::setRotate(float degrees,SkBitmap& rotateBitmap,ImageAlloc& al
     canvas->translate((dstWidth - sourceWidth*scaleDownSize)/2,(dstHeight-sourceHeight*scaleDownSize)/2);
     canvas->scale(scaleDownSize,scaleDownSize);
     canvas->drawBitmap(srcBitmap, 0, 0, &paint);
-    delete canvas;
+    delete canvas;*/
     return RET_OK;
 }
 
 int ImageOperator::setScale(float sx, float sy,void* addr){
-    if (mbitmap.mNativeHandler < 0 ) {
-        return IMG_INVALIDE;
-    }
-    SkBitmap bitmap;
-    reinterpret_cast<Bitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&bitmap);;
-    if ((sx > MX_SCALE) || (sy > MX_SCALE)) {
-        ALOGE("setScale max x scale up or y scale up is 16");
-        return RET_ERR_INVALID_OPERATION;
-    }
-    if (sx == 1.0 && sy == 1.0f ) {
-        return renderAndShow(&bitmap,addr);
-    }
-    int srcW = mbitmap.width;
-    int srcH = mbitmap.height;
-    int dstWidth = srcW*sx;
-    int dstHeight = srcH*sy;
-    ALOGE("setScale %d %d-->%d %d", srcW,srcH,dstWidth,dstHeight);
-    if (dstWidth > mscreen.surfaceW || dstHeight > mscreen.surfaceH) {
-        float scaleSample = mscreen.surfaceH*1.0/dstHeight < mscreen.surfaceW*1.0/dstWidth ?
-                      mscreen.surfaceH*1.0/dstHeight:mscreen.surfaceW*1.0/dstWidth;
-        srcW  = srcW*scaleSample;
-        srcH = srcH*scaleSample;
-    }
-    dstWidth = srcW*sx;
-    dstHeight = srcH*sy;
-    SkBitmap scaledBm;
-    SkColorType colorType = colorTypeForScaledOutput(bitmap.colorType());
-    SkImageInfo info = SkImageInfo::Make((dstWidth), dstHeight, colorType, bitmap.alphaType());
-    scaledBm.setInfo(info);
-    sk_sp<Bitmap> scaledPixelRef = Bitmap::allocateAshmemBitmap(&scaledBm);
-    if (!scaledPixelRef) {
-        SkString msg;
-        msg.printf("OOM allocating scaled Bitmap with dimensions %i x %i",
-                    dstWidth, dstHeight);
-        jniThrowException(mEnv, "java/lang/OutOfMemoryError",
-                              msg.c_str());
-        return RET_ERR_INVALID_OPERATION;
-    }
-    SkPaint paint;
-    paint.setBlendMode(SkBlendMode::kSrc);
-    paint.setFilterQuality(kHigh_SkFilterQuality);  // bilinear filtering
+        if (mbitmap.mNativeHandler < 0 ) {
+            return IMG_INVALIDE;
+        }
+        SkBitmap bitmap;
+        reinterpret_cast<VBitmap*>(mbitmap.mNativeHandler)->getSkBitmap(&bitmap);;
+        if ((sx > MX_SCALE) || (sy > MX_SCALE)) {
+            ALOGE("setScale max x scale up or y scale up is 16");
+            return RET_ERR_INVALID_OPERATION;
+        }
+        if (sx == 1.0 && sy == 1.0f ) {
+            return renderAndShow(&bitmap,addr);
+        }
+        int srcW = mbitmap.width;
+        int srcH = mbitmap.height;
+        int dstWidth = srcW*sx;
+        int dstHeight = srcH*sy;
+        ALOGE("setScale %d %d-->%d %d", srcW,srcH,dstWidth,dstHeight);
+        if (dstWidth > mscreen.surfaceW || dstHeight > mscreen.surfaceH) {
+            float scaleSample = mscreen.surfaceH*1.0/dstHeight < mscreen.surfaceW*1.0/dstWidth ?
+                          mscreen.surfaceH*1.0/dstHeight:mscreen.surfaceW*1.0/dstWidth;
+            srcW  = srcW*scaleSample;
+            srcH = srcH*scaleSample;
+        }
+        dstWidth = srcW*sx;
+        dstHeight = srcH*sy;
+        SkBitmap scaledBm;
+        SkColorType colorType = colorTypeForScaledOutput(bitmap.colorType());
+        SkImageInfo info = SkImageInfo::Make((dstWidth), dstHeight, colorType, bitmap.alphaType());
+        scaledBm.setInfo(info);
+        sk_sp<VBitmap> scaledPixelRef = VBitmap::allocateAshmemBitmap(&scaledBm);
+        if (!scaledPixelRef) {
+            SkString msg;
+            msg.printf("OOM allocating scaled Bitmap with dimensions %i x %i",
+                        dstWidth, dstHeight);
+            jniThrowException(mEnv, "java/lang/OutOfMemoryError",
+                                  msg.c_str());
+            return RET_ERR_INVALID_OPERATION;
+        }
+        SkPaint paint;
+        paint.setBlendMode(SkBlendMode::kSrc);
+        paint.setFilterQuality(kHigh_SkFilterQuality);  // bilinear filtering
 
-    SkCanvas canvas(scaledBm, SkCanvas::ColorBehavior::kLegacy);
-    const SkIRect src = SkIRect::MakeXYWH((mbitmap.width-srcW)/2, (mbitmap.height-srcH)/2,
-                                        (mbitmap.width+srcW)/2, (mbitmap.height+srcH)/2);
+        SkCanvas canvas(scaledBm, SkCanvas::ColorBehavior::kLegacy);
+        const SkIRect src = SkIRect::MakeXYWH((mbitmap.width-srcW)/2, (mbitmap.height-srcH)/2,
+                                            (mbitmap.width+srcW)/2, (mbitmap.height+srcH)/2);
 
-    const SkRect dst = SkRect::MakeXYWH((mscreen.surfaceW-dstWidth)/2, (mscreen.surfaceH-dstHeight)/2,
-                                       (mscreen.surfaceW+dstWidth)/2, (mscreen.surfaceH+dstHeight)/2);
+        const SkRect dst = SkRect::MakeXYWH((mscreen.surfaceW-dstWidth)/2, (mscreen.surfaceH-dstHeight)/2,
+                                           (mscreen.surfaceW+dstWidth)/2, (mscreen.surfaceH+dstHeight)/2);
 
-    canvas.drawBitmapRect(bitmap, src, dst, &paint);
-    return renderAndShow(&scaledBm,addr);
+        canvas.drawBitmapRect(bitmap, src, dst, &paint);
+        return renderAndShow(&scaledBm,addr);
 }
 int ImageOperator::renderAndShow(SkBitmap *bmp,void* addr) {
-    /*switch (bmp->colorType()) {
-        case kAlpha_8_SkColorType:
-        //GL_ALPHA
-        break;
-        case kARGB_4444_SkColorType:
-        case kN32_SkColorType:
-        //rgba
-        convertRGBA8888toRGB(addr,bmp);
-        break;
-        case kRGB_565_SkColorType:
-        //rgb
-        break;
-        default:
-        return RET_ERR_INVALID_OPERATION;
-    }*/
-
     return 0;
 }
 int ImageOperator::setTranslate(float tx, float ty){

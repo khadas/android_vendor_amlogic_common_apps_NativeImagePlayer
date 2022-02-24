@@ -4,6 +4,7 @@ static jclass    gDecodeException_class;
 static jmethodID gDecodeException_constructorMethodID;
 static jfieldID bmphandler;
 static jclass bmpinfo_class;
+
 // These need to stay in sync with ImageDecoder.java's Error constants.
 GifCodec::GifCodec(std::unique_ptr<SkAndroidCodec> codec,
     sk_sp<SkPngChunkReader> peeker):ImageDecoder(std::move(codec),peeker),fFrame(-1),fTotalFrames(0){
@@ -17,7 +18,13 @@ enum Error {
     kSourceIncomplete    = 2,
     kSourceMalformedData = 3,
 };
-
+GifCodec::~GifCodec() {
+    if (fCodec) {
+        fFrames.clear();
+        fFrameInfos.clear();
+        fCodec = NULL;
+    }
+}
 int GifCodec::getFrameSize() {
     if (fCodec) {
         fFrameInfos = fCodec->getFrameInfo();
@@ -55,14 +62,13 @@ jlong nativeSetGif(JNIEnv *env, jobject obj1, jstring filepath){
         jclass gif_class = FindClassOrDie(env,"com/droidlogic/imageplayer/decoder/GifBmpInfo");
         jfieldID gifFrame = GetFieldIDOrDie(env, gif_class,"mFrameCount","I");
         env->SetIntField(obj1, gifFrame,player->getFrameSize());
-        /*if (player->duration() <= 1) {
-            return -1;
-        }*/
+        jclass bmpinfo = FindClassOrDie(env,"com/droidlogic/imageplayer/decoder/BmpInfo");
+        bmphandler = GetFieldIDOrDie(env,bmpinfo,"mNativeBmpPtr","J");
         return reinterpret_cast<jlong>(player);
     }
     return  0;
 }
-bool copy_to(sk_sp<Bitmap> dst, SkColorType dstColorType, const SkBitmap& src) {
+bool copy_to(sk_sp<VBitmap> dst, SkColorType dstColorType, const SkBitmap& src) {
     SkPixmap srcPM;
     if (!src.peekPixels(&srcPM)) {
         return false;
@@ -95,14 +101,13 @@ long GifCodec::decodeFrame(int frameIndex) {
         if (frameIndex >= (int) fFrames.size()) {
             fFrames.resize(frameIndex + 1);
         }
-        sk_sp<Bitmap> nativeBitmap = fFrames[frameIndex];
+        sk_sp<VBitmap> nativeBitmap = fFrames[frameIndex];
 
         if (nativeBitmap == nullptr) {
-            ALOGD("nativeBitmap");
             SkBitmap skbitmap;
             const SkImageInfo info = fCodec->getInfo().makeColorType(kN32_SkColorType);
             skbitmap.setInfo(info);
-            nativeBitmap = Bitmap::allocateAshmemBitmap(&skbitmap);
+            nativeBitmap = VBitmap::allocateAshmemBitmap(&skbitmap);
             if (!nativeBitmap) {
                 ALOGE("Could not allocmem");
                 return 0;
@@ -114,7 +119,7 @@ long GifCodec::decodeFrame(int frameIndex) {
             if (requiredFrame != SkCodec::kNoFrame) {
                 SkASSERT(requiredFrame >= 0
                          && static_cast<size_t>(requiredFrame) < fFrames.size());
-                sk_sp<Bitmap> tempBmpPtr = fFrames[requiredFrame];
+                sk_sp<VBitmap> tempBmpPtr = fFrames[requiredFrame];
                 if (tempBmpPtr != nullptr) {
                     ALOGE("no cache");
                     SkBitmap requiredBitmap;
@@ -133,24 +138,41 @@ long GifCodec::decodeFrame(int frameIndex) {
             }
             nativeBitmap->setImmutable();
         }
-        ALOGE("decodeFrame ok");
         return reinterpret_cast<jlong>(nativeBitmap.release());
 
 }
 
 jlong nativeDecodeFrame(JNIEnv *env, jobject obj1,jlong nativePtr,int frameIndex) {
-    ALOGE("nativenativeDecodeFrame");
+    long bmp = env->GetLongField(obj1,bmphandler);
+    if (bmp !=  0) {
+        auto *ptr = reinterpret_cast<VBitmap*>(bmp);
+        delete ptr;
+        env->SetLongField(obj1,bmphandler,0);
+    }
     GifCodec *decoder =  reinterpret_cast<GifCodec*>(nativePtr);
     long handleID = decoder->decodeFrame(frameIndex);
 
     return handleID;
 }
-jlong nativeRelease(JNIEnv *env, jobject obj1) {
+jlong nativeReleaseLastFrame(JNIEnv *env, jobject obj1,jlong nativePtr) {
+    long bmp = env->GetLongField(obj1,bmphandler);
+    ALOGE("nativeReleaseLastFrame %ld",bmp);
+    if (bmp != 0) {
+        auto ptr= reinterpret_cast<VBitmap*>(bmp);
+        env->SetLongField(obj1,bmphandler,0);
+        delete ptr;
+    }
+    if (nativePtr > 0) {
+        GifCodec * decoder = reinterpret_cast<GifCodec*>(nativePtr);
+        delete decoder;
+        decoder = NULL;
+    }
     return 0;
 }
 static const JNINativeMethod gImagePlayerMethod[] = {
     {"nativeSetGif",     "(Ljava/lang/String;)J",     (void*)nativeSetGif},
     {"nativeDecodeFrame",     "(JI)J",     (void*)nativeDecodeFrame},
+    {"nativeReleaseLastFrame",           "(J)V",               (void*)nativeReleaseLastFrame},
     };
 
 int register_com_droidlogic_imageplayer_decoder_GifBmpInfo(JNIEnv* env) {
@@ -159,4 +181,3 @@ int register_com_droidlogic_imageplayer_decoder_GifBmpInfo(JNIEnv* env) {
     return android::RegisterMethodsOrDie(env, "com/droidlogic/imageplayer/decoder/GifBmpInfo", gImagePlayerMethod,
                                          NELEM(gImagePlayerMethod));
 }
-

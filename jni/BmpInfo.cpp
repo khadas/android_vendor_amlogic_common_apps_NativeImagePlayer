@@ -3,6 +3,7 @@
 #include <hwui/ImageDecoder.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include "SharedMemoryProxy.h"
 #define LOG_NDEBUG 0
 #define LOG_TAG "SurfaceOverlay-jni"
 static jclass    gDecodeException_class;
@@ -115,7 +116,6 @@ jlong setDataSource(JNIEnv *env, jobject obj1, jobject fileDescriptor){
     env->SetIntField(obj1, bmpH,height);
     const bool isNinePatch = peeker->mPatch != nullptr;
     ImageDecoder* decoder = new ImageDecoder(std::move(androidCodec), std::move(peeker));
-
     return  reinterpret_cast<jlong>(decoder);
 }
 
@@ -149,8 +149,14 @@ bool decodeInner(JNIEnv *env, jobject obj1, jlong nativePtr, jint targetWidth, j
         jniThrowException(env, "java/lang/IllegalArgumentException", "Failed to setInfo properly");
         return 0;
     }
+    size_t size;
+    const size_t rowBytes = bm.rowBytes();
+    if (!VBitmap::computeAllocationSize(rowBytes, bm.height(), &size)) {
+        return nullptr;
+    }
 
-    sk_sp<Bitmap> nativeBitmap = Bitmap::allocateAshmemBitmap(&bm);
+    sk_sp<VBitmap> nativeBitmap = VBitmap::allocateAshmemBitmap(&bm);
+
     if (!nativeBitmap) {
         SkString msg;
         msg.printf("OOM allocating Bitmap with dimensions %i x %i",
@@ -233,9 +239,19 @@ bool nativeRenderFrame(JNIEnv *env, jobject obj1){
     return true;
 }
 void nativeRelease(JNIEnv *env, jobject obj1,jlong nativePtr){
-    if (nativePtr > 0) {
+    long bmp = env->GetLongField(obj1,bmphandler);
+    ALOGE("nativeRelease %ld",bmp);
+    if (bmp != 0) {
+        auto ptr= reinterpret_cast<VBitmap*>(bmp);
+        env->SetLongField(obj1,bmphandler,0);
+        delete ptr;
+    }
+    if (nativePtr != 0) {
         auto* decoder = reinterpret_cast<ImageDecoder*>(nativePtr);
-        delete decoder;
+        if (decoder != nullptr) {
+            delete decoder;
+            decoder = nullptr;
+        }
     }
 }
 

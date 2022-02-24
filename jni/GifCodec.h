@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 #include "SkAnimCodecPlayer.h"
 #define LOG_NDEBUG 0
-#define LOG_TAG "SurfaceOverlay-jni"
+#define LOG_TAG "Gif"
 
 class GifCodec: public ImageDecoder  {
 
@@ -15,11 +15,12 @@ private:
     double                          fNextUpdate;
     int                             fTotalFrames;
     std::vector<SkCodec::FrameInfo> fFrameInfos;
-    std::vector<sk_sp<Bitmap>>      fFrames;
+    std::vector<sk_sp<VBitmap>>      fFrames;
 public:
     GifCodec(std::unique_ptr<SkAndroidCodec> codec,
                    sk_sp<SkPngChunkReader> peeker = nullptr);
     int getFrameSize();
+    ~GifCodec();
     long decodeFrame(int frameIndex);
 };
 
