@@ -15,6 +15,7 @@
 android_app {
     name: "NativeImagePlayer",
 
+    compile_multilib: "32",
     srcs: ["src/**/*.java"],
     system_ext_specific: true,
     certificate: "platform",
@@ -36,6 +37,7 @@ cc_library_shared {
     name: "libimage_jni",
     srcs: ["jni/*.cpp"],
     system_ext_specific: true,
+    compile_multilib: "32",
     shared_libs: [
         "libandroidfw",
         "libbase",
