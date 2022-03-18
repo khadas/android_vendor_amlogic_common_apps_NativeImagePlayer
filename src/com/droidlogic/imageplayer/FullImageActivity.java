@@ -42,23 +42,32 @@ import android.annotation.NonNull;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
 import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
-
+import android.os.IBinder;
+import android.os.Parcel;
+import android.os.RemoteException;
+import android.os.ServiceManager;
+import android.view.SurfaceControl;
+import android.graphics.Rect;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.lang.reflect.Method;
 import java.io.IOException;
 import java.util.ArrayList;
-
+import android.view.animation.RotateAnimation;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.ScaleAnimation;
 import androidx.core.app.ActivityCompat;
 
 import com.droidlogic.imageplayer.decoder.ImagePlayer;
@@ -103,6 +112,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE
     };
+    private static final String SURFACE_COMPOSER_INTERFACE_KEY = "android.ui.ISurfaceComposer";
     private boolean mPlayPicture;
     private RelativeLayout mMenu;
     private ImagePlayer mImageplayer;
@@ -115,10 +125,9 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private LinearLayout mRotateRlay;
     private LinearLayout mScaleUp;
     private LinearLayout mScaleDown;
-
+    private ViewGroup mRootView;
     private float mScale = SCALE_ORI;
     private int mIndex;
-
     private String mCurPicPath;
     public final BroadcastReceiver mUsbScanner = new BroadcastReceiver() {
         @Override
@@ -150,7 +159,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private String mCurrenAXIS;
     private int mSlideIndex;
     private int mDegress;
-    private LoadImageTask mLoadImageTask;
     private Uri mUri;
     private boolean paused = false;
     private Handler mUIHandler = new Handler() {
@@ -236,6 +244,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         if (!mImageplayer.setDataSource(mCurPicPath)) {
             mUIHandler.sendEmptyMessageDelayed(NOT_DISPLAY, MSG_DELAY_TIME);
         } else {
+            mSurfaceView.setVisibility(View.VISIBLE);
             mImageplayer.setPrepareListener(this);
         }
 
@@ -324,19 +333,15 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         findViewById(R.id.mNextButton).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (mLoadImageTask != null && mLoadImageTask.getStatus() != AsyncTask.Status.FINISHED) {
-                    return;
-                }
                 mIndex++;
                 if (mIndex>= mImageList.size()) {
                     mIndex = 0;
                 }
                 mUri = mImageList.get(mIndex);
-
                 mImageplayer.release();
+                mSurfaceView.setVisibility(View.GONE);
                 Log.v(TAG, "mImageplayer release");
-                mLoadImageTask = new LoadImageTask();
-                mLoadImageTask.execute();
+                showBmp();
             }
         });
     }
@@ -488,6 +493,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         mSurfaceView.setFocusableInTouchMode(true);
         mSurfaceView.setOnClickListener(this);
         mMenu = findViewById(R.id.menu_layout);
+        mRootView = (ViewGroup)findViewById(R.id.root);
         mLoadingProgress = findViewById(R.id.loading_image);
         mOutAnimation = AnimationUtils.loadAnimation(this,
                 R.anim.menu_and_left_out);
@@ -564,36 +570,120 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     }
 
     private void rotate(boolean right) {
-        if (null == mImageplayer) {
+        if (null == mImageplayer || !mImageplayer.CurrentBmpAvailable()) {
             Log.e(TAG, "rotateRight imageplayer null");
             return;
         }
+        int mPredegree = mDegress;
         if (right) {
             mDegress += ROTATION_DEGREE;
         } else {
             mDegress -= ROTATION_DEGREE;
         }
-        mDegress = (mDegress + 360) % 360;
-        Log.d(TAG, "rotate degree " + mDegress + " mScale" + mScale);
-        adjustViewSize(mDegress, mScale);
-        if (mScale == SCALE_ORI) {
-            mImageplayer.setRotate(mDegress);
-        } else {
-            mImageplayer.setRotateScale(mDegress, mScale, mScale);
+        mDegress = mDegress%360;
+        Log.d(TAG, "rotate degree " + mPredegree + " --->" + mDegress);
+        AnimationSet setAnimation = new AnimationSet(true);
+        Animation alpha = new AlphaAnimation(0.5f,1);
+        Animation rotate = new RotateAnimation(mPredegree,mDegress,Animation.RELATIVE_TO_SELF,0.5f,Animation.RELATIVE_TO_SELF,0.5f);
+
+        float scaleSize = needScaleAnimation();
+        if (scaleSize > 0) {
+            Animation scale1 = new ScaleAnimation(1,scaleSize,1,scaleSize,Animation.RELATIVE_TO_SELF,0.5f,Animation.RELATIVE_TO_SELF,0.5f);
+            setAnimation.addAnimation(scale1);
+        }
+
+        setAnimation.addAnimation(alpha);
+        setAnimation.addAnimation(rotate);
+        setAnimation.setDuration(200);
+        setAnimation.setFillAfter(true);
+        rotate.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {
+            }
+
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                if (mScale == SCALE_ORI) {
+                    mImageplayer.setRotate((mDegress + 360) % 360);
+                } else {
+                    mImageplayer.setRotateScale((mDegress + 360) % 360, mScale, mScale);
+                }
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {
+
+            }
+        });
+       mRootView.startAnimation(setAnimation);
+    }
+    private float needScaleAnimation(){
+               int rvW = mRootView.getRight()-mRootView.getLeft();
+        int rvH = mRootView.getBottom()-mRootView.getTop();
+        if (rvW > mImageplayer.getMxH() && rvH < mImageplayer.getMxW() ||
+                    rvW < mImageplayer.getMxH() && rvH > mImageplayer.getMxW()) {
+            if (mDegress%180 != 0 ) {
+                return 1.0f*mImageplayer.getMxH()/mImageplayer.getMxW();
+            }
+        }
+        return 0f;
+    }
+    private void update() {
+        SurfaceControl sc = mSurfaceView.getSurfaceControl();
+        try {
+            Class scClass = Class.forName("android.view.SurfaceView");
+            Method getMethod = scClass.getDeclaredMethod("getSurfaceRenderPosition");
+            Rect rect = (Rect)getMethod.invoke(mSurfaceView);
+            Log.d("TAG","rect"+rect);
+           // getMethod = scClass.getDeclaredMethod("setFrame",int.class,int.class,int.class,int.class);
+          //  getMethod.invoke(mSurfaceView,true,true);
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
     }
-
+    @Override
+    public void played() {
+        if (mLoadingProgress.getVisibility() == View.VISIBLE) {
+            runOnUiThread(() -> {
+                mLoadingProgress.setVisibility(View.GONE);
+            });
+        }
+        mImageplayer.setPrepareListener(null);
+    }
+    @Override
+    public void playerr() {
+        Log.d(TAG,"play error");
+        mRootView.clearAnimation();
+        mScale = SCALE_ORI;
+        mRootView.setScaleX(mScale);
+        mRootView.setScaleY(mScale);
+        mImageplayer.nativeReset();
+        final String errStr = mCurPicPath+getString(R.string.not_display);
+        runOnUiThread(() -> {
+            Toast.makeText(this, errStr, Toast.LENGTH_SHORT).show();
+        });
+        mImageplayer.release();
+    }
     @Override
     public void Prepared() {
         Log.d(TAG, "prepared");
         mUIHandler.removeMessages(NOT_DISPLAY);
-        mImageplayer.setPrepareListener(null);
-        adjustViewSize(DEFAULT_DEGREE, SCALE_ORI);
+        runOnUiThread(() -> {
+            mLoadingProgress.setVisibility(View.VISIBLE);
+        });
+        if (mDegress != DEFAULT_DEGREE) {
+            mDegress = DEFAULT_DEGREE;
+        }
+        mRootView.clearAnimation();
+        mScale = SCALE_ORI;
+        mRootView.setScaleX(mScale);
+        mRootView.setScaleY(mScale);
         mImageplayer.show();
+        adjustViewSize(DEFAULT_DEGREE, SCALE_ORI);
     }
 
     private void scale(boolean scaleUp) {
-        if (null == mImageplayer) {
+        if (null == mImageplayer || !mImageplayer.CurrentBmpAvailable()) {
             Log.e(TAG, "scale imageplayer null");
             return;
         }
@@ -619,19 +709,35 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             mScale = SCALE_MIN + SCALE_RATIO;
             return;
         }
-        adjustViewSize(mDegress, mScale);
+        mRootView.setScaleX(mScale);
+        mRootView.setScaleY(mScale);
         if (mImageplayer != null) {
-            mDegress = (mDegress + 360) % 360;
             if (mDegress % 360 != 0) {
                 Log.d(TAG, "scale has rotation with " + mDegress);
-                mImageplayer.setRotateScale(mDegress, mScale, mScale);
+                mImageplayer.setRotateScale((mDegress + 360) % 360, mScale, mScale);
             } else {
                 mImageplayer.setScale(mScale, mScale);
             }
-
         }
     }
 
+    private void updateSurface() {
+         Log.d("TAG","updateSurface 1006");
+         IBinder mSurfaceFlinger = ServiceManager.getService("SurfaceFlinger");
+         try {
+             if (mSurfaceFlinger != null) {
+                 final Parcel data = Parcel.obtain();
+                 final Parcel reply = Parcel.obtain();
+                 data.writeInterfaceToken(SURFACE_COMPOSER_INTERFACE_KEY);
+                // data.writeInt(0);
+                 mSurfaceFlinger.transact(1006, data, reply, 0 /* flags */);
+                 reply.recycle();
+                 data.recycle();
+             }
+          } catch (RemoteException ex) {
+             ex.printStackTrace();
+          }
+    }
     @Override
     protected void onStart() {
         super.onStart();
@@ -639,8 +745,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         Log.d(TAG, "onStart");
         mImageplayer = ImagePlayer.getInstance();
         mImageplayer.initParam();
-        mLoadImageTask = new LoadImageTask();
-        mLoadImageTask.execute();
+        showBmp();
 
         mUIHandler.sendEmptyMessageDelayed(DISMISS_MENU, DISPLAY_MENU_TIME);
         mRotateRlay.requestFocus();
@@ -651,7 +756,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         super.onStop();
         Log.d(TAG, "onStop");
         paused = true;
-        mLoadImageTask = null;
 
         if (mImageplayer != null) {
             Log.d(TAG, "onStop imageplayer release");
@@ -767,41 +871,8 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             }
         }
     }
-
-    private final class LoadImageTask extends AsyncTask<Void, Void, Void> {
-        @Override
-        protected void onPreExecute() {
-            // We don't want to show the spinner every time we load images, because that would be
-            // annoying; instead, only start showing the spinner if loading the image has taken
-            // longer than 1 sec (ie 1000 ms)
-            mLoadingProgress.postDelayed(new Runnable() {
-                public void run() {
-                    if (getStatus() != AsyncTask.Status.FINISHED && mLoadingProgress.getVisibility() == View.GONE) {
-                        mLoadingProgress.setVisibility(View.VISIBLE);
-                    }
-                }
-            }, DISPLAY_PROGRESSBAR);
-        }
-
-        @Override
-        protected Void doInBackground(Void... args) {
-            Log.d(TAG, "doInBackground show image by image player service");
-            runAndShow();
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(Void arg) {
-            if (mLoadingProgress.getVisibility() == View.VISIBLE) {
-                mLoadingProgress.setVisibility(View.GONE);
-            }
-        }
-
-        @Override
-        protected void onCancelled() {
-            if (mLoadingProgress.getVisibility() == View.VISIBLE) {
-                mLoadingProgress.setVisibility(View.GONE);
-            }
-        }
+    void showBmp() {
+        runAndShow();
     }
+
 }

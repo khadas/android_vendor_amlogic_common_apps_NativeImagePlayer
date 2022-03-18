@@ -16,10 +16,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.droidlogic.imageplayer"
     android:versionCode="1"
+
     android:versionName="1.0" >
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.ACCESS_SURFACE_FLINGER"/>
     <uses-permission android:name="droidlogic.permission.SYSTEM_CONTROL" />
+    <uses-permission android:name="android.permission.HARDWARE_TEST"/>
     <uses-permission android:name="android.permission.WRITE_MEDIA_STORAGE"/>
     <application
         android:allowBackup="true"

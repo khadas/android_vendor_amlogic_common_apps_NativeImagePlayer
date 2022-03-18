@@ -62,6 +62,13 @@ public class BmpInfo {
             Log.d("TAG", "mImagePlayer" + mImagePlayer.getMxW() + "x" + mImagePlayer.getMxH());
             mTargetWidth = mImagePlayer.getMxW();
             mTargetHeight = mImagePlayer.getMxH();
+            if (mBmpWidth > mTargetWidth || mBmpHeight > mTargetHeight) {
+                mBmpWidth = mTargetWidth;
+                mBmpHeight = mTargetHeight;
+            }else if (mBmpWidth < BmpInfoFractory.BMP_SMALL_W && mBmpHeight < BmpInfoFractory.BMP_SMALL_H) {
+                mTargetWidth = mBmpWidth;
+                mTargetHeight = mBmpHeight;
+            }
             return decodeInner(mDecoderPtr, mTargetWidth, mTargetHeight);
         } else return false;
     }
@@ -89,4 +96,17 @@ public class BmpInfo {
     private native void nativeRelease(long decoder);
 
     private native long nativeSetDataSource(FileDescriptor file);
+    @Override
+    public String toString() {
+        return "BmpInfo{" +
+                "mBmpWidth=" + mBmpWidth +
+                ", mBmpHeight=" + mBmpHeight +
+                ", mTargetWidth=" + mTargetWidth +
+                ", mTargetHeight=" + mTargetHeight +
+                ", mSampleSize=" + mSampleSize +
+                ", filePath='" + filePath + '\'' +
+                ", mNativeBmpPtr=" + mNativeBmpPtr +
+                ", mDecoderPtr=" + mDecoderPtr +
+                '}';
+    }
 }

@@ -21,7 +21,7 @@ using namespace android;
 #define PROPERTY "vendor.display-size"
 #define ODS_WIDTH_PROPERTY "ro.surface_flinger.max_graphics_width"
 #define ODS_HEIGHT_PROPERTY "ro.surface_flinger.max_graphics_height"
-sp<ANativeWindow> mNativeWindow;
+sp<ANativeWindow> mNativeWindow = nullptr;
 ImageOperator *imageplayer;
 JNIEnv *jnienv;
 int fenceFd = -1;
@@ -78,7 +78,6 @@ static int StringSplit(std::vector<std::string>& dst, const std::string& src, co
 }
 static int reRender(int32_t width, int32_t height, void *data, size_t inLen);
 static int render(int32_t width, int32_t height, void *data, size_t inLen);
-
 
 static int initParam(JNIEnv *env, jobject entity) {
     ALOGE("imageplayer_initialParam");
@@ -309,7 +308,6 @@ static jint nativeShow(JNIEnv *env, jclass clz, jlong jbitmap){
     if (mNativeWindow.get() == NULL || imageplayer == NULL || jbitmap ==0 ) {
         return -1;
     }
-
     SkBitmap skbitmap;
     imageplayer->init(jbitmap,0,true) ;
     VBitmap* bitmap = reinterpret_cast<VBitmap*>(jbitmap);
@@ -386,6 +384,12 @@ static jint rotateScaleCrop(JNIEnv* env, jclass clz,jint rotation, jfloat sx,jfl
     return ret;
 }
 
+    void nativeReset(JNIEnv *env,jclass clz) {
+        if (mNativeWindow != nullptr) {
+            native_window_set_buffers_transform(mNativeWindow.get(), 0);
+            ALOGD("nativeReset----->");
+        }
+    }
 
   static jint nativeScale(JNIEnv *env, jclass clz,jfloat sx,jfloat sy,jboolean redraw) {
     SkBitmap bmp;
@@ -507,6 +511,7 @@ static const JNINativeMethod gImagePlayerMethod[] = {
     {"nativeRotate",              "(IZ)I",                               (void*)rotate},
     {"nativeRotateScaleCrop",           "(IFFZ)I",                      (void*)rotateScaleCrop},
     {"nativeTransform",          "(IFFIIIII)I",                               (void*)transform},
+    {"nativeReset",                "()V",     (void*)nativeReset},
     };
 
 int register_com_droidlogic_imageplayer_decoder_ImagePlayer(JNIEnv* env) {

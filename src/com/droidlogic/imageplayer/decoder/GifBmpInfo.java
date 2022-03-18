@@ -65,10 +65,29 @@ public class GifBmpInfo extends BmpInfo {
     }
     @Override
     public void release() {
+        mDecoderPtr = 0;
+        mFrameCount = 0;
+        mCurrentId = 0;
         nativeReleaseLastFrame(mDecoderPtr);
     }
     private native void nativeReleaseLastFrame(long decoder);
     private native long nativeSetGif(String filepath);
 
     private native long nativeDecodeFrame(long decoder, int frameIndex);
+    @Override
+    public String toString() {
+        return "GifBmpInfo{" +
+                "mBmpWidth=" + mBmpWidth +
+                ", mBmpHeight=" + mBmpHeight +
+                ", mTargetWidth=" + mTargetWidth +
+                ", mTargetHeight=" + mTargetHeight +
+                ", mSampleSize=" + mSampleSize +
+                ", filePath='" + filePath + '\'' +
+                ", mNativeBmpPtr=" + mNativeBmpPtr +
+                ", mDecoderPtr=" + mDecoderPtr +
+                ", mCurrentDisplayFrame=" + mCurrentDisplayFrame +
+                ", mFrameCount=" + mFrameCount +
+                ", mCurrentId=" + mCurrentId +
+                '}';
+    }
 }

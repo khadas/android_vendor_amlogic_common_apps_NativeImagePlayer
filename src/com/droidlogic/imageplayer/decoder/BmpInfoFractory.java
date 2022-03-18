@@ -8,6 +8,8 @@ import java.io.File;
 public class BmpInfoFractory {
     public static final String TYPE_GIF = "gif";
     public static final String TYPE_APP = "application";
+    public static final int BMP_SMALL_W = 1280;
+    public static final int BMP_SMALL_H = 720;
 
     public static BmpInfo getBmpInfo(String filePath) {
         String mimeType = getMimeType(filePath);

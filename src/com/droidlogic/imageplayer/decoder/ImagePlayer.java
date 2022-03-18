@@ -45,7 +45,7 @@ public class ImagePlayer {
     static {
         System.loadLibrary("image_jni");
     }
-
+    Object lockObject = new Object();
     BmpInfo mBmpInfoHandler;
     BmpInfo mLastBmpInfo;
     boolean bindSurface;
@@ -61,6 +61,11 @@ public class ImagePlayer {
     private HandlerThread mWorkThread = new HandlerThread("worker");
     private Handler mWorkHandler;
     private Status mStatus = Status.IDLE;
+    private String mImageFilePath;
+    private int mDegree;
+    private boolean mredraw;
+    private float mSx;
+    private float mSy;
     private Runnable preparedDelay = new Runnable() {
         @Override
         public void run() {
@@ -77,28 +82,94 @@ public class ImagePlayer {
     private Runnable decodeRunnable = new Runnable() {
         @Override
         public void run() {
-            boolean decodeOk = mBmpInfoHandler.decode();
-            boolean ready = (mReadyListener != null);
-            Log.d(TAG, "ready" + decodeOk + "x" + ready);
-            if (decodeOk && ready) {
-                mStatus = Status.PREAPRED;
-                mReadyListener.Prepared();
-            } else if (decodeOk) {
-                mWorkHandler.postDelayed(preparedDelay, 200);
-            } else {
-                Log.d(TAG, "cannot display");
+            synchronized(lockObject) {
+                if (mBmpInfoHandler == null) {
+                    return;
+                }
+                Log.d(TAG, "decodeRunnable" + mBmpInfoHandler);
+                boolean decodeOk = mBmpInfoHandler.decode();
+                boolean ready = (mReadyListener != null);
+                Log.d(TAG, "ready" + decodeOk + "x" + ready);
+                if (decodeOk && ready) {
+                    mStatus = Status.PREAPRED;
+                    mReadyListener.Prepared();
+                } else if (decodeOk) {
+                    mWorkHandler.postDelayed(preparedDelay, 200);
+                } else {
+                    if (mReadyListener != null ) {
+                        mReadyListener.playerr();
+                    }
+                    Log.d("TAG", "cannot display");
+                }
             }
+        }
+    };
+    public boolean CurrentBmpAvailable() {
+        if (mBmpInfoHandler != null ) {
+            if ((mBmpInfoHandler instanceof GifBmpInfo) &&
+                    ((GifBmpInfo)mBmpInfoHandler).mFrameCount >0 ) {
+                return true;
+            }
+            if (!(mBmpInfoHandler instanceof GifBmpInfo) && mBmpInfoHandler.mNativeBmpPtr != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+    private Runnable setDataSourceWork = new Runnable() {
+        @Override
+        public void run() {
+            boolean ret = true;
+            synchronized (lockObject) {
+                mBmpInfoHandler = BmpInfoFractory.getBmpInfo(mImageFilePath);
+                mBmpInfoHandler.setImagePlayer(ImagePlayer.this);
+                ret = mBmpInfoHandler.setDataSrouce(mImageFilePath);
+                Log.d("setDataSource","setDataSource"+mImageFilePath+"@"+mBmpInfoHandler+"----"+ret);
+                if (!ret && mBmpInfoHandler instanceof GifBmpInfo) {
+                    mLastBmpInfo.release();
+                    mBmpInfoHandler = BmpInfoFractory.getStaticBmpInfo();
+                    mBmpInfoHandler.setImagePlayer(ImagePlayer.this);
+                    ret = mBmpInfoHandler.setDataSrouce(mImageFilePath);
+                    mLastBmpInfo = mBmpInfoHandler;
+                }
+            }
+            if (ret)
+                mWorkHandler.post(decodeRunnable);
+        }
+    };
+    private Runnable releasework = new Runnable() {
+         @Override
+        public void run() {
+           synchronized(lockObject) {
+                if (mBmpInfoHandler != null) {
+                    Log.d("TAG","releasework"+mBmpInfoHandler);
+                    mBmpInfoHandler.release();
+                    mBmpInfoHandler = null;
+                }
+           }
         }
     };
     private Runnable ShowFrame = new Runnable() {
         @Override
         public void run() {
             if (bindSurface) {
-                if (mBmpInfoHandler.renderFrame()) {
-                    mStatus = Status.PLAYING;
-                    if (mBmpInfoHandler instanceof GifBmpInfo) {
+                synchronized(lockObject) {
+                    Log.d("ShowFrame","mBmpInfo"+mBmpInfoHandler+"**"+mBmpInfoHandler.mNativeBmpPtr);
+                    if ((mBmpInfoHandler instanceof GifBmpInfo) &&
+                            ((GifBmpInfo)mBmpInfoHandler).mFrameCount >0 &&
+                            (mBmpInfoHandler.renderFrame())) {
+                        Log.d("TAG","((GifBmpInfo)mBmpInfoHandler).mFrameCount"+((GifBmpInfo)mBmpInfoHandler).mFrameCount);
+                        mStatus = Status.PLAYING;
                         mBmpInfoHandler.decodeNext();
                         mWorkHandler.postDelayed(ShowFrame, 200);
+                        if (mReadyListener != null ) {
+                            mReadyListener.played();
+                        }
+                    }else if ((mBmpInfoHandler.mNativeBmpPtr != 0) && mBmpInfoHandler.renderFrame()){
+                        mStatus = Status.PLAYING;
+                        if (mReadyListener != null ) {
+                            mReadyListener.played();
+                        }
                     }
                 }
             } else {
@@ -118,7 +189,7 @@ public class ImagePlayer {
         }
         return mImagePlayerInstance;
     }
-
+    public native static void  nativeReset();
     public native static int nativeScale(float sx, float sy, boolean redraw);
 
     public native static int nativeShow(long bmphandler);
@@ -135,18 +206,13 @@ public class ImagePlayer {
 
     }
 
-    public boolean setDataSource(String filePath) {
+    public  boolean setDataSource(String filePath) {
+        mImageFilePath = filePath;
+        mWorkHandler.removeCallbacks(rotateWork);
+        mWorkHandler.removeCallbacks(rotateCropWork);
         mWorkHandler.removeCallbacks(ShowFrame);
-        mBmpInfoHandler = BmpInfoFractory.getBmpInfo(filePath);
-        mBmpInfoHandler.setImagePlayer(this);
-        if (!mBmpInfoHandler.setDataSrouce(filePath) && mBmpInfoHandler instanceof GifBmpInfo) {
-            mLastBmpInfo.release();
-            mBmpInfoHandler = BmpInfoFractory.getStaticBmpInfo();
-            mBmpInfoHandler.setImagePlayer(this);
-            mBmpInfoHandler.setDataSrouce(filePath);
-            mLastBmpInfo = mBmpInfoHandler;
-        }
-        mWorkHandler.post(decodeRunnable);
+        mWorkHandler.removeCallbacks(decodeRunnable);
+        mWorkHandler.post(setDataSourceWork);
         return true;
     }
 
@@ -167,13 +233,25 @@ public class ImagePlayer {
         mWorkHandler.post(ShowFrame);
         return true;
     }
-
-    public int setRotate(int degrees) {
-        boolean redraw = true;
-        if (mBmpInfoHandler instanceof GifBmpInfo) {
-            redraw = false;
+    private Runnable rotateWork = new Runnable() {
+         @Override
+        public void run() {
+           synchronized(lockObject) {
+                nativeRotate(mDegree,mredraw);
+           }
         }
-        nativeRotate(degrees, redraw);
+    };
+    public int setRotate(int degrees) {
+        mWorkHandler.removeCallbacks(rotateWork);
+        boolean redraw = true;
+        synchronized(lockObject) {
+            if (mBmpInfoHandler instanceof GifBmpInfo) {
+                redraw = false;
+            }
+        }
+        mDegree = degrees;
+        mredraw = redraw;
+        mWorkHandler.post(rotateWork);
         mTransformLStep = 0;
         mTransformRStep = 0;
         mTransformTStep = 0;
@@ -183,10 +261,12 @@ public class ImagePlayer {
 
     public int setScale(float sx, float sy) {
         boolean redraw = true;
-        if (mBmpInfoHandler instanceof GifBmpInfo) {
-            redraw = false;
+        synchronized(lockObject) {
+            if (mBmpInfoHandler instanceof GifBmpInfo) {
+                redraw = false;
+            }
+            nativeScale(sx, sy, redraw);
         }
-        nativeScale(sx, sy, redraw);
         mTransformLStep = 0;
         mTransformRStep = 0;
         mTransformTStep = 0;
@@ -227,23 +307,39 @@ public class ImagePlayer {
                 axis[3] = 1;
                 break;
         }
-        Log.d(TAG, "tranform" + direction + ":" + axis[0] + ":" + axis[1] + ":" + axis[2] + ":" + axis[3]);
-        if (nativeTransform(degree, sx, sy, mTransformTStep + axis[0], mTransformBStep + axis[1],
-                mTransformLStep + axis[2], mTransformRStep + axis[3], STEP) == 0) {
-            mTransformTStep += axis[0];
-            mTransformBStep += axis[1];
-            mTransformLStep += axis[2];
-            mTransformRStep += axis[3];
+        synchronized(lockObject) {
+            Log.d(TAG, "tranform" + direction + ":" + axis[0] + ":" + axis[1] + ":" + axis[2] + ":" + axis[3]);
+            if (nativeTransform(degree, sx, sy, mTransformTStep + axis[0], mTransformBStep + axis[1],
+                    mTransformLStep + axis[2], mTransformRStep + axis[3], STEP) == 0) {
+                mTransformTStep += axis[0];
+                mTransformBStep += axis[1];
+                mTransformLStep += axis[2];
+                mTransformRStep += axis[3];
+            }
         }
         return 0;
     }
-
-    public int setRotateScale(int degrees, float sx, float sy) {
-        boolean redraw = true;
-        if (mBmpInfoHandler instanceof GifBmpInfo) {
-            redraw = false;
+    private Runnable rotateCropWork = new Runnable() {
+         @Override
+        public void run() {
+           synchronized(lockObject) {
+                nativeRotateScaleCrop(mDegree, mSx, mSy, mredraw);
+           }
         }
-        nativeRotateScaleCrop(degrees, sx, sy, redraw);
+    };
+    public int setRotateScale(int degrees, float sx, float sy) {
+        mWorkHandler.removeCallbacks(rotateCropWork);
+        boolean redraw = true;
+        synchronized(lockObject) {
+            if (mBmpInfoHandler instanceof GifBmpInfo) {
+                redraw = false;
+            }
+        }
+        mDegree = degrees;
+        mSx = mSx;
+        mSy = mSy;
+        mredraw = redraw;
+        mWorkHandler.post(rotateCropWork);
         mTransformLStep = 0;
         mTransformRStep = 0;
         mTransformTStep = 0;
@@ -268,6 +364,9 @@ public class ImagePlayer {
 
     public void stop() {
         if (mStatus == Status.PLAYING) {
+            mWorkHandler.removeCallbacks(rotateWork);
+            mWorkHandler.removeCallbacks(rotateCropWork);
+            mWorkHandler.removeCallbacks(decodeRunnable);
             mWorkHandler.removeCallbacks(ShowFrame);
             unbindSurface();
             mStatus = Status.STOPPED;
@@ -275,7 +374,10 @@ public class ImagePlayer {
     }
 
     public void release() {
-        mBmpInfoHandler.release();
+        mWorkHandler.removeCallbacks(ShowFrame);
+        mWorkHandler.removeCallbacks(decodeRunnable);
+        mWorkHandler.removeCallbacks(setDataSourceWork);
+        mWorkHandler.post(releasework);
         mStatus = Status.IDLE;
     }
 
@@ -288,15 +390,20 @@ public class ImagePlayer {
     }
 
     public int getBmpWidth() {
-        if (mBmpInfoHandler != null)
-            return mBmpInfoHandler.getBmpWidth();
-        else return 0;
+        synchronized(lockObject) {
+            if (mBmpInfoHandler != null) {
+                return mBmpInfoHandler.getBmpWidth();
+            }
+        }
+        return 0;
     }
 
     public int getBmpHeight() {
-        if (mBmpInfoHandler != null)
-            return mBmpInfoHandler.getBmpHeight();
-        else return 0;
+        synchronized(lockObject) {
+            if (mBmpInfoHandler != null)
+                return mBmpInfoHandler.getBmpHeight();
+        }
+        return 0;
 
     }
 
@@ -304,5 +411,8 @@ public class ImagePlayer {
 
     public interface PrepareReadyListener {
         void Prepared();
+        void played();
+        void playerr();
     }
+
 }
