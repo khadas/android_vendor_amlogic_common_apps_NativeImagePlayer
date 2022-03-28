@@ -33,12 +33,14 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.util.Log;
 
+import com.droidlogic.app.SystemControlManager;
 import java.io.File;
 import java.lang.reflect.Field;
 
 public class ImagePlayer {
     public static final String TAG = "ImagePlayer";
     public static int STEP = 100;
+    private static final String AXIS = "/sys/class/video/device_resolution";
 
     private static ImagePlayer mImagePlayerInstance;
 
@@ -355,12 +357,37 @@ public class ImagePlayer {
         bindSurface = false;
         nativeUnbindSurface();
     }
-
+    private boolean checkVideoAxis() {
+        SystemControlManager mSystemControlManager = SystemControlManager.getInstance();
+        String deviceoutput = mSystemControlManager.readSysFs(AXIS);
+        if (deviceoutput != null && !deviceoutput.isEmpty()) {
+            Log.d(TAG,"checkVideoAxis"+deviceoutput);
+            String[] axisStr = deviceoutput.split("x");
+            if (axisStr.length < 2)return false;
+            try {
+                mScreenWidth = Integer.parseInt(axisStr[0]);
+                mScreenHeight = Integer.parseInt(axisStr[1]);
+                return true;
+            }catch(Exception ex){
+                return false;
+            }
+        }
+        return false;
+    }
+    public void initPlayer() {
+        if (!checkVideoAxis()) {
+            initParam();
+        }else {
+            initVideoParam();
+        }
+    }
     private native void bindSurface(Surface surface);
 
     private native void nativeUnbindSurface();
 
-    public native int initParam();
+    private native int initParam();
+
+    private native int initVideoParam();
 
     public void stop() {
         if (mStatus == Status.PLAYING) {

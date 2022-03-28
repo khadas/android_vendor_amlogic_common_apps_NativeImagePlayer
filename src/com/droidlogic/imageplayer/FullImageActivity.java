@@ -69,7 +69,6 @@ import android.view.animation.RotateAnimation;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.ScaleAnimation;
 import androidx.core.app.ActivityCompat;
-
 import com.droidlogic.imageplayer.decoder.ImagePlayer;
 
 
@@ -744,7 +743,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         paused = false;
         Log.d(TAG, "onStart");
         mImageplayer = ImagePlayer.getInstance();
-        mImageplayer.initParam();
+        mImageplayer.initPlayer();
         showBmp();
 
         mUIHandler.sendEmptyMessageDelayed(DISMISS_MENU, DISPLAY_MENU_TIME);

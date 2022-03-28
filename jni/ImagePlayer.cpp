@@ -78,7 +78,19 @@ static int StringSplit(std::vector<std::string>& dst, const std::string& src, co
 }
 static int reRender(int32_t width, int32_t height, void *data, size_t inLen);
 static int render(int32_t width, int32_t height, void *data, size_t inLen);
-
+static int initVideoParam(JNIEnv *env, jobject entity) {
+    ALOGE("initVideoParam");
+    jclass imageplayer_class = FindClassOrDie(env,"com/droidlogic/imageplayer/decoder/ImagePlayer");
+    jfieldID mImagePlayer_ScreenWidth = GetFieldIDOrDie(env,imageplayer_class,"mScreenWidth","I");
+    jfieldID mImagePlayer_ScreenHeight = GetFieldIDOrDie(env,imageplayer_class,"mScreenHeight","I");
+    int javaHeight = env->GetIntField(entity,mImagePlayer_ScreenHeight);
+    int javaWidth = env->GetIntField(entity,mImagePlayer_ScreenWidth);
+    ALOGE("last solution %d x%d",javaWidth,javaHeight);
+    mFrameHeight = (int)env->GetIntField(entity, mImagePlayer_ScreenHeight);
+    mFrameWidth = (int)env->GetIntField(entity,mImagePlayer_ScreenWidth);
+    ALOGE("get width %dx%d",mFrameWidth,mFrameHeight);
+    return 0;
+}
 static int initParam(JNIEnv *env, jobject entity) {
     ALOGE("imageplayer_initialParam");
     const std::string path(PROPERTY);
@@ -512,6 +524,7 @@ static const JNINativeMethod gImagePlayerMethod[] = {
     {"nativeRotateScaleCrop",           "(IFFZ)I",                      (void*)rotateScaleCrop},
     {"nativeTransform",          "(IFFIIIII)I",                               (void*)transform},
     {"nativeReset",                "()V",     (void*)nativeReset},
+    {"initVideoParam",           "()I",     (void*)initVideoParam},
     };
 
 int register_com_droidlogic_imageplayer_decoder_ImagePlayer(JNIEnv* env) {
