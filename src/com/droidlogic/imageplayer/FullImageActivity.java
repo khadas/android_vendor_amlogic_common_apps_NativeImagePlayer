@@ -126,8 +126,11 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private LinearLayout mScaleDown;
     private ViewGroup mRootView;
     private float mScale = SCALE_ORI;
+    private float mRotateScale = SCALE_ORI;
     private int mIndex;
     private String mCurPicPath;
+    private int mTransferX;
+    private int mTransferY;
     public final BroadcastReceiver mUsbScanner = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -155,6 +158,8 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     };
     private ArrayList<Uri> mImageList = new ArrayList<Uri>();
     private ArrayList<String> mPathList = new ArrayList<String>();
+    private final int mOsdWidth = getProperties("ro.surface_flinger.max_graphics_width",1920);
+    private final int mOsdHeight = getProperties("ro.surface_flinger.max_graphics_height",1080);
     private String mCurrenAXIS;
     private int mSlideIndex;
     private int mDegress;
@@ -313,6 +318,20 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             Class properClass = Class.forName("android.os.SystemProperties");
             Method getMethod = properClass.getMethod("getBoolean",String.class,boolean.class);
             defVal = (boolean)getMethod.invoke(null,key,def);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        } finally {
+            Log.d(TAG,"getProperty:"+key+" defVal:"+defVal);
+            return defVal;
+        }
+
+    }
+     private static int getProperties(String key, int def) {
+        int defVal = def;
+        try {
+            Class properClass = Class.forName("android.os.SystemProperties");
+            Method getMethod = properClass.getMethod("getInt",String.class,int.class);
+            defVal = (int)getMethod.invoke(null,key,def);
         } catch (Exception ex) {
             ex.printStackTrace();
         } finally {
@@ -524,33 +543,32 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && mMenu.getVisibility() != View.VISIBLE) {
             mUIHandler.removeMessages(SHOW_LEFT_ANIM);
             mUIHandler.sendEmptyMessage(SHOW_LEFT_ANIM);
-            if (mImageplayer.setTranslate(mDegress, mScale, mScale, 1) < 0) {
+            if (translate(-1,0)) {
                 Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
             }
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP && mMenu.getVisibility() != View.VISIBLE) {
             mUIHandler.removeMessages(SHOW_TOP_ANIM);
             mUIHandler.sendEmptyMessage(SHOW_TOP_ANIM);
-            if (mImageplayer.setTranslate(mDegress, mScale, mScale, 0) < 0) {
+            if (translate(0,-1)) {
                 Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
             }
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && mMenu.getVisibility() != View.VISIBLE) {
             mUIHandler.removeMessages(SHOW_RIGHT_ANIM);
             mUIHandler.sendEmptyMessage(SHOW_RIGHT_ANIM);
-            if (mImageplayer.setTranslate(mDegress, mScale, mScale, 3) < 0) {
+            if (translate(1,0)) {
                 Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
             }
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && mMenu.getVisibility() != View.VISIBLE) {
             mUIHandler.removeMessages(SHOW_BOTTOM_ANIM);
             mUIHandler.sendEmptyMessage(SHOW_BOTTOM_ANIM);
-            if (mImageplayer.setTranslate(mDegress, mScale, mScale, 2) < 0) {
+            if (translate(0,1)) {
                 Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
             }
             return true;
         }
-
         return super.onKeyDown(keyCode, event);
     }
 
@@ -602,11 +620,11 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
             @Override
             public void onAnimationEnd(Animation animation) {
-                if (mScale == SCALE_ORI) {
+           //     if (mScale == SCALE_ORI) {
                     mImageplayer.setRotate((mDegress + 360) % 360);
-                } else {
+             /*   } else {
                     mImageplayer.setRotateScale((mDegress + 360) % 360, mScale, mScale);
-                }
+                }*/
             }
 
             @Override
@@ -615,14 +633,62 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             }
         });
        mRootView.startAnimation(setAnimation);
+       mRotateScale = scaleSize;
+    }
+    private boolean translate(int x,int y) {
+        Log.d("TAG","translate"+x+";"+y);
+        int xaxis = x;
+        int yaxis = y;
+        int degree  = (mDegress+360)%360;
+        if (degree == 90) {
+            xaxis = y;
+            yaxis = -x;
+        }else if (degree == 180) {
+            xaxis = -x;
+            yaxis = -y;
+        }else if (degree == 270) {
+            xaxis = -y;
+            yaxis = x;
+        }
+        int tempX = mTransferX + xaxis;
+        int tempY = mTransferY + yaxis;
+        int step = (int)((mScale*10 - SCALE_ORI*10)/(SCALE_RATIO*10));
+        if (Math.abs(tempX) > step || Math.abs(tempY) > step) {
+            return false;
+        }
+        float scaleSize = mScale;//*mRotateScale;
+        int osdWidthStep = (int)Math.ceil((mOsdWidth*scaleSize - mOsdWidth)/(2*step*scaleSize));
+        int osdHeightStep = (int)Math.ceil((mOsdHeight*scaleSize - mOsdHeight)/(2*step*scaleSize));
+        Log.d("TAG","osdWidthStep"+osdWidthStep+":"+osdHeightStep+"("+tempX+":"+tempY+"mRotateScale"+mRotateScale);
+        /*if (false&&mDegress%180 != 0){
+            int mtemp = osdWidthStep;
+            osdWidthStep = osdHeightStep;
+            osdHeightStep = mtemp;
+        }*/
+        if (Math.abs(tempX) == step || Math.abs(tempY) == step) {
+            if (tempX == 0) {
+                mRootView.scrollTo(0, tempY*osdHeightStep+30*(tempY/Math.abs(tempY)));
+            }else if (tempY == 0) {
+                mRootView.scrollTo(tempX*osdWidthStep+30*(tempX/Math.abs(tempX)), 0);
+            }else {
+                mRootView.scrollTo(tempX*osdWidthStep+30*(tempX/Math.abs(tempX)), tempY*osdHeightStep+30*(tempY/Math.abs(tempY)));
+            }
+        }else {
+            mRootView.scrollTo(tempX*osdWidthStep, tempY*osdHeightStep);
+        }
+        mTransferX = tempX;
+        mTransferY = tempY;
+        return true;
     }
     private float needScaleAnimation(){
-               int rvW = mRootView.getRight()-mRootView.getLeft();
+        int rvW = mRootView.getRight()-mRootView.getLeft();
         int rvH = mRootView.getBottom()-mRootView.getTop();
-        if (rvW > mImageplayer.getMxH() && rvH < mImageplayer.getMxW() ||
-                    rvW < mImageplayer.getMxH() && rvH > mImageplayer.getMxW()) {
+        Log.d(TAG,"mRootView.getLeft()"+mRootView.getLeft()+":"+mRootView.getRight()+":"+
+            mRootView.getTop()+":"+mRootView.getBottom());
+        if (rvW > mOsdHeight && rvH < mOsdWidth ||
+                    rvW < mOsdHeight && rvH > mOsdWidth) {
             if (mDegress%180 != 0 ) {
-                return 1.0f*mImageplayer.getMxH()/mImageplayer.getMxW();
+                return 1.0f*mOsdHeight/mOsdWidth;
             }
         }
         return 0f;
@@ -654,8 +720,9 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         Log.d(TAG,"play error");
         mRootView.clearAnimation();
         mScale = SCALE_ORI;
-        mRootView.setScaleX(mScale);
-        mRootView.setScaleY(mScale);
+        mRotateScale = SCALE_ORI;
+        mRootView.setScaleX(SCALE_ORI);
+        mRootView.setScaleY(SCALE_ORI);
         mImageplayer.nativeReset();
         final String errStr = mCurPicPath+getString(R.string.not_display);
         runOnUiThread(() -> {
@@ -673,10 +740,13 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         if (mDegress != DEFAULT_DEGREE) {
             mDegress = DEFAULT_DEGREE;
         }
+        mTransferX = 0;
+        mTransferY = 0;
         mRootView.clearAnimation();
         mScale = SCALE_ORI;
-        mRootView.setScaleX(mScale);
-        mRootView.setScaleY(mScale);
+        mRotateScale = SCALE_ORI;
+        mRootView.setScaleX(SCALE_ORI);
+        mRootView.setScaleY(SCALE_ORI);
         mImageplayer.show();
         adjustViewSize(DEFAULT_DEGREE, SCALE_ORI);
     }
@@ -693,7 +763,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             mScale -= SCALE_RATIO;
         }
         mScale = (float) (Math.round(mScale * 100) * 1.0 / 100);
-        Log.d(TAG, "scale " + mScale);
+        Log.d(TAG, "scale " + mScale+"-"+mRotateScale);
 
         // value like 1.999999 could continue to be enlarged or else
         if ((SCALE_MAX - SCALE_ERR) <= mScale) {
@@ -713,10 +783,11 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         if (mImageplayer != null) {
             if (mDegress % 360 != 0) {
                 Log.d(TAG, "scale has rotation with " + mDegress);
-                mImageplayer.setRotateScale((mDegress + 360) % 360, mScale, mScale);
-            } else {
+                mImageplayer.setRotate((mDegress + 360) % 360);
+                //mImageplayer.setRotateScale((mDegress + 360) % 360, mScale, mScale);
+            }/* else {
                 mImageplayer.setScale(mScale, mScale);
-            }
+            }*/
         }
     }
 
@@ -776,6 +847,9 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
      */
     @Override
     public void onClick(View v) {
+        mRootView.scrollTo(0,0);
+        mTransferX = 0;
+        mTransferY = 0;
         switch (v.getId()) {
             case R.id.ll_rotate_r:
                 mUIHandler.removeMessages(ROTATE_R);
