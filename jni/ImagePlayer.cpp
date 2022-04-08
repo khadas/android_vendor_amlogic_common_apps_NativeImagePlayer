@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <math.h>
+//#include <amlogic/am_gralloc_uvm_ext.h>
 #include "android-base/parseint.h"
 #include "android-base/properties.h"
 using namespace android;
@@ -37,7 +38,7 @@ SharedMemoryProxy mMemory;
 static jfieldID mImagePlayer_ScreenWidth;
 static jfieldID mImagePlayer_ScreenHeight;
 static jfieldID mImagePlayer_VideoScale;
-
+extern bool am_gralloc_set_uvm_buf_usage(const native_handle_t * hnd, int usage);
 extern void rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, uint8_t* yPlane,
         uint8_t* crPlane, uint8_t* cbPlane, size_t chromaStep, size_t yStride, size_t chromaStride);
 static std::string& StringTrim(std::string &str)
@@ -154,9 +155,9 @@ void bindSurface(JNIEnv *env, jobject imageobj, jobject jsurface){
         native_window_api_connect(mNativeWindow.get(),
                        NATIVE_WINDOW_API_MEDIA);
         ALOGI("set native window overlay %0x",GRALLOC1_PRODUCER_USAGE_CAMERA);
-
+        CHECK_EQ(0,native_window_set_usage(mNativeWindow.get(), am_gralloc_get_omx_osd_producer_usage()));
         //CHECK_EQ(0,native_window_set_usage(mNativeWindow.get(), am_gralloc_get_video_decoder_full_buffer_usage()));
-        CHECK_EQ(0,native_window_set_usage(mNativeWindow.get(), GRALLOC1_PRODUCER_USAGE_CAMERA));
+        //CHECK_EQ(0,native_window_set_usage(mNativeWindow.get(), GRALLOC1_PRODUCER_USAGE_CAMERA));
         native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
         //CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_FREEZE));
         native_window_set_buffers_format(mNativeWindow.get(), HAL_PIXEL_FORMAT_YCrCb_420_SP);
@@ -225,7 +226,7 @@ static int reRender(int32_t width, int32_t height, void *data, size_t inLen) {
         return ret;
     }
     ALOGE("-->buf %d %d  %d %d %p",buf->format,buf->stride,buf->width, buf->height, buf);
-
+    am_gralloc_set_uvm_buf_usage(buf->handle, 1);
     GraphicBufferMapper &mapper = GraphicBufferMapper::get();
     Rect bounds(frame_width,frame_height);
     uint8_t* img = NULL;
@@ -284,6 +285,8 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen) {
         }
         return ret;
     }
+    ALOGE("***************************");
+    am_gralloc_set_uvm_buf_usage(buf->handle, 1);
     ALOGE("-->buf %d %d  %d %d %d",buf->format,buf->stride,buf->width, buf->height, fenceFd);
     Rect bounds(frame_width,frame_height);
     uint8_t* img = NULL;
