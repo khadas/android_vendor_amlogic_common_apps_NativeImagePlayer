@@ -93,7 +93,7 @@ class ImageOperator{
         int convertIndex8toYUYV(void *dst, const SkBitmap *src);
 
         void rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, uint8_t* yPlane,
-        uint8_t* crPlane, uint8_t* cbPlane, size_t chromaStep, size_t yStride, size_t chromaStride);
+        uint8_t* crPlane, uint8_t* cbPlane, size_t chromaStep, size_t yStride, size_t chromaStride, SkColorType colorType);
         int show(void* addr);
     private:
         int renderAndShow(SkBitmap *bmp, void* addr);

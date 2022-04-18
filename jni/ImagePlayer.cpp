@@ -40,7 +40,7 @@ static jfieldID mImagePlayer_ScreenHeight;
 static jfieldID mImagePlayer_VideoScale;
 extern bool am_gralloc_set_uvm_buf_usage(const native_handle_t * hnd, int usage);
 extern void rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, uint8_t* yPlane,
-        uint8_t* crPlane, uint8_t* cbPlane, size_t chromaStep, size_t yStride, size_t chromaStride);
+        uint8_t* crPlane, uint8_t* cbPlane, size_t chromaStep, size_t yStride, size_t chromaStride, SkColorType colorType);
 static std::string& StringTrim(std::string &str)
 {
     if (str.empty()) {
@@ -77,8 +77,8 @@ static int StringSplit(std::vector<std::string>& dst, const std::string& src, co
 
     return nCount;
 }
-static int reRender(int32_t width, int32_t height, void *data, size_t inLen);
-static int render(int32_t width, int32_t height, void *data, size_t inLen);
+static int reRender(int32_t width, int32_t height, void *data, size_t inLen,  SkColorType colorType);
+static int render(int32_t width, int32_t height, void *data, size_t inLen,  SkColorType colorType);
 static int initVideoParam(JNIEnv *env, jobject entity) {
     ALOGE("initVideoParam");
     jclass imageplayer_class = FindClassOrDie(env,"com/droidlogic/imageplayer/decoder/ImagePlayer");
@@ -198,12 +198,12 @@ static int rotate(JNIEnv *env, jclass clz,jint rotation, jboolean redraw) {
         SkBitmap bmp;
         imageplayer->getSelf(bmp);
         uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
-        int ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+        int ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height(),bmp.colorType());
         bmp.reset();
     }
     return 0;
 }
-static int reRender(int32_t width, int32_t height, void *data, size_t inLen) {
+static int reRender(int32_t width, int32_t height, void *data, size_t inLen, SkColorType colorType) {
     status_t err = NO_ERROR;
     int ret = 0;
     int frame_width = ((width + 1) & ~1);
@@ -252,7 +252,7 @@ static int reRender(int32_t width, int32_t height, void *data, size_t inLen) {
         size_t chromaStride =  buf->stride;
         uint8_t* pixelBuffer = (uint8_t*)data;
         imageplayer->rgbToYuv420(pixelBuffer, width, height, yPlane,
-                        uPlane, vPlane, chromaStep, yStride, chromaStride);
+                        uPlane, vPlane, chromaStep, yStride, chromaStride, colorType);
         if (!mMemory.allocmem(buf->height * buf->stride*3/2)) {
             memcpy(mMemory.getmem(),img,buf->height * buf->stride*3/2);
         }
@@ -262,7 +262,7 @@ static int reRender(int32_t width, int32_t height, void *data, size_t inLen) {
 
     return 0;
 }
-static int render(int32_t width, int32_t height, void *data, size_t inLen) {
+static int render(int32_t width, int32_t height, void *data, size_t inLen, SkColorType colorType ) {
     GraphicBufferMapper &mapper = GraphicBufferMapper::get();
     status_t err = NO_ERROR;
     int ret = 0;
@@ -306,7 +306,7 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen) {
     size_t chromaStride =  buf->stride;
     uint8_t* pixelBuffer = (uint8_t*)data;
     imageplayer->rgbToYuv420(pixelBuffer, width, height, yPlane,
-                    uPlane, vPlane, chromaStep, yStride, chromaStride);
+                    uPlane, vPlane, chromaStep, yStride, chromaStride, colorType);
     mMemory.releaseMem();
     if (!mMemory.allocmem(buf->height * buf->stride*3/2)) {
         memcpy(mMemory.getmem(),img,buf->height * buf->stride*3/2);
@@ -332,7 +332,7 @@ static jint nativeShow(JNIEnv *env, jclass clz, jlong jbitmap){
     uint8_t* pixelBuffer = (uint8_t*)skbitmap.getPixels();
     mLastWidth = 0;
     mLastHeight = 0;
-    return render(bitmap->width(),bitmap->height(),pixelBuffer,bitmap->width()*bitmap->height());
+    return render(bitmap->width(),bitmap->height(),pixelBuffer,bitmap->width()*bitmap->height(),skbitmap.colorType());
 
   }
 static jint rotateScaleCrop(JNIEnv* env, jclass clz,jint rotation, jfloat sx,jfloat sy, jboolean redraw) {
@@ -365,14 +365,14 @@ static jint rotateScaleCrop(JNIEnv* env, jclass clz,jint rotation, jfloat sx,jfl
             native_window_set_crop(mNativeWindow.get(), NULL);
             if (redraw) {
                 uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
-                ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+                ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height(),bmp.colorType());
             }
         }else {
             if (mLastTransform != transform) {
                 CHECK_EQ(OK, native_window_set_scaling_mode(mNativeWindow.get(),NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW));
                 if (redraw) {
                     uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
-                    ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+                    ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height(),bmp.colorType());
                 }
             }
         }
@@ -389,7 +389,7 @@ static jint rotateScaleCrop(JNIEnv* env, jclass clz,jint rotation, jfloat sx,jfl
         ALOGE("rotateScaleCrop  [%d %d]%f [%d %d %d %d]",bmp.width(),bmp.height(),scaleStep,left,top,right,bottom);
         if (redraw) {
             uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
-            ret =  reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+            ret =  reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height(),bmp.colorType());
         }
     }
     bmp.reset();
@@ -427,7 +427,7 @@ static jint rotateScaleCrop(JNIEnv* env, jclass clz,jint rotation, jfloat sx,jfl
             if (redraw) {
                 uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
                 native_window_set_crop(mNativeWindow.get(), NULL);
-                ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+                ret = reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height(),bmp.colorType());
             }
         }
     } else {
@@ -443,7 +443,7 @@ static jint rotateScaleCrop(JNIEnv* env, jclass clz,jint rotation, jfloat sx,jfl
         ALOGE("nativeScale [%d %d %d %d] %d",scaleStep,left,top,right,bottom);
         if (redraw) {
             uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
-            ret =  reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+            ret =  reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height(),bmp.colorType());
         }
     }
     bmp.reset();
@@ -512,7 +512,7 @@ static int transform(JNIEnv *env, jclass clz, jint rotation, jfloat sx, jfloat s
     ALOGE("transform to [%d %d %d %d] %d ",top,bottom,left,right,ret);
     if (redraw) {
         uint8_t* pixelBuffer = (uint8_t*)bmp.getPixels();
-        reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height());
+        reRender(bmp.width(),bmp.height(),pixelBuffer,bmp.width()*bmp.height(),bmp.colorType());
     }
     bmp.reset();
     return ret;

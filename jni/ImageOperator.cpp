@@ -349,7 +349,7 @@ int ImageOperator::convertRGBA8888toRGB(void *dst, const SkBitmap *src) {
  * Convert from RGB 888 to Y'CbCr using the conversion specified in JFIF v1.02
  */
 void ImageOperator::rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, uint8_t* yPlane,
-        uint8_t* crPlane, uint8_t* cbPlane, size_t chromaStep, size_t yStride, size_t chromaStride) {
+        uint8_t* crPlane, uint8_t* cbPlane, size_t chromaStep, size_t yStride, size_t chromaStride, SkColorType colorType) {
     uint8_t R, G, B;
     size_t index = 0;
 
@@ -359,9 +359,18 @@ void ImageOperator::rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, ui
         uint8_t* y = yPlane;
         bool jEven = (j & 1) == 0;
         for (size_t i = 0; i < width; i++) {
-            R = rgbBuf[index++];
-            G = rgbBuf[index++];
-            B = rgbBuf[index++];
+            if (colorType == kAlpha_8_SkColorType) {
+                uint8_t gray = rgbBuf[index++];
+                R = gray;
+                G = gray;
+                B = gray;
+            }else {
+                R = rgbBuf[index++];
+                G = rgbBuf[index++];
+                B = rgbBuf[index++];
+                // Skip alpha
+                index++;
+            }
             if (width <= 720) {
                 *y++ =  ( 0.257 * R +0.504 * G + 0.098 * B)+16;
                 if (jEven && (i & 1) == 0) {
@@ -379,8 +388,7 @@ void ImageOperator::rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, ui
                     cb += chromaStep;
                 }
             }
-            // Skip alpha
-            index++;
+
         }
         yPlane += yStride;
         if (jEven) {
