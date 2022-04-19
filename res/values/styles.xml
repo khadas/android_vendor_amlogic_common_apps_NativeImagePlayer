@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2012 Amlogic, Inc.
+<?xml version="1.0" encoding="utf-8"?><!-- Copyright (C) 2012 Amlogic, Inc.
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -28,6 +27,15 @@
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowDisablePreview">true</item>
         <item name="android:windowFrame">@null</item>
+    </style>
+
+    <style name="menu_item">
+        <item name="android:layout_width">150dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:drawablePadding">5dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:padding">15dp</item>
+        <item name="android:textColor">#FFFFFFFF</item>
     </style>
 
 </resources>

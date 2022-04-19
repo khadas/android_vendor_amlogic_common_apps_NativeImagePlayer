@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2012 Amlogic, Inc.
+<?xml version="1.0" encoding="utf-8"?><!-- Copyright (C) 2012 Amlogic, Inc.
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -13,13 +12,9 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<set xmlns:android="http://schemas.android.com/apk/res/android" >
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/right_rotation_focus" android:state_pressed="true" />
+    <item android:drawable="@drawable/right_rotation_focus" android:state_focused="true" />
+    <item android:drawable="@drawable/right_rotation" />
+</selector>
 
-    <translate
-        android:duration="100"
-        android:fromXDelta="-150"
-        android:fromYDelta="0"
-        android:toXDelta="0"
-        android:toYDelta="0" />
-
-</set>

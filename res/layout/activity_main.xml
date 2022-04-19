@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2012 Amlogic, Inc.
+<?xml version="1.0" encoding="utf-8"?><!-- Copyright (C) 2012 Amlogic, Inc.
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -13,15 +12,22 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent" >
+    android:layout_height="match_parent"
+    tools:ignore="UseCompatTextViewDrawableXml,ContentDescription">
+
     <FrameLayout
-        android:layout_centerInParent="true"
         android:id="@+id/root"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
         <SurfaceView
             android:id="@+id/surfaceview_show_picture"
             android:layout_width="wrap_content"
@@ -29,219 +35,169 @@
             android:layout_gravity="center" />
 
         <ProgressBar
-            android:layout_gravity="center"
             android:id="@+id/loading_image"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center"
             android:indeterminateDrawable="@drawable/rotate_loading_360"
             android:indeterminateDuration="1800" />
+
     </FrameLayout>
-            <RelativeLayout
-            android:id="@+id/menu_layout"
-            android:background="@drawable/box_bk"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="left"
-            android:paddingLeft="60dp" >
 
-            <Button
-                android:id="@+id/menu_nav"
-                android:layout_width="140dp"
-                android:layout_height="wrap_content"
-                android:layout_alignParentTop="true"
-                android:layout_marginTop="100dp"
-                android:focusable="false"
-                android:background="@drawable/navigation_bk"
-                android:text="@string/menu_title"
-                android:textColor="#FFFFFFFF" />
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/menu_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="100dp"
+        android:layout_marginBottom="100dp"
+        android:background="@drawable/shape_menu_parent"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        tools:visibility="visible">
 
-            <View
-                android:id="@+id/line1"
-                android:layout_width="140dp"
-                android:layout_height="1dp"
-                android:layout_above="@+id/ll_rotate_r"
-                android:layout_marginBottom="10dp"
-                android:background="#9fffffff" />
+        <TextView
+            android:id="@+id/tv_rotate_left"
+            style="@style/menu_item"
+            android:background="@drawable/selector_menu_item"
+            android:drawableTop="@drawable/selector_rotation_left"
+            android:text="@string/left_rotation"
+            android:textColor="#FFFFFFFF"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintHorizontal_chainStyle="packed"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toLeftOf="@id/tv_rotate_right"
+            app:layout_constraintTop_toTopOf="parent" />
 
-            <LinearLayout
-                android:id="@+id/ll_rotate_r"
-                android:layout_width="140dp"
-                android:layout_height="wrap_content"
-                android:clickable="true"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:gravity="center_vertical"
-                android:background="@drawable/menu_heighlight"
-                android:layout_above="@+id/line2" >
+        <TextView
+            android:id="@+id/tv_rotate_right"
+            style="@style/menu_item"
+            android:background="@drawable/selector_menu_item"
+            android:drawableTop="@drawable/selector_rotation_right"
+            android:text="@string/right_rotation"
+            app:layout_constraintBottom_toBottomOf="@id/tv_rotate_left"
+            app:layout_constraintLeft_toRightOf="@id/tv_rotate_left"
+            app:layout_constraintRight_toLeftOf="@id/tv_scale_up"
+            app:layout_constraintTop_toTopOf="@id/tv_rotate_left" />
 
-                <ImageView
-                    android:id="@+id/menu_right_rotate"
-                    android:layout_width="60dp"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="center"
-                    android:src="@drawable/rotation_r" />
+        <TextView
+            android:id="@+id/tv_scale_up"
+            style="@style/menu_item"
+            android:background="@drawable/selector_menu_item"
+            android:drawableTop="@drawable/selector_scale_up"
+            android:text="@string/scale_up"
+            app:layout_constraintBottom_toBottomOf="@id/tv_rotate_left"
+            app:layout_constraintLeft_toRightOf="@id/tv_rotate_right"
+            app:layout_constraintRight_toLeftOf="@id/tv_scale_down"
+            app:layout_constraintTop_toTopOf="@id/tv_rotate_left" />
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/right_rotation"
-                    android:textColor="#ffffffff" />
-            </LinearLayout>
+        <TextView
+            android:id="@+id/tv_scale_down"
+            style="@style/menu_item"
+            android:background="@drawable/selector_menu_item"
+            android:drawableTop="@drawable/selector_scale_down"
+            android:text="@string/scale_down"
+            app:layout_constraintBottom_toBottomOf="@id/tv_rotate_left"
+            app:layout_constraintLeft_toRightOf="@id/tv_scale_up"
+            app:layout_constraintRight_toLeftOf="@id/tv_timer_set"
+            app:layout_constraintTop_toTopOf="@id/tv_rotate_left" />
 
-            <View
-                android:id="@+id/line2"
-                android:layout_width="140dp"
-                android:layout_height="1dp"
-                android:layout_above="@+id/ll_rotate_l"
-                android:layout_marginBottom="10dp"
-                android:background="#90ffffff" />
+        <TextView
+            android:id="@+id/tv_timer_set"
+            style="@style/menu_item"
+            android:background="@drawable/selector_menu_item"
+            android:drawableTop="@drawable/selector_timer_set"
+            android:text="@string/timer_set"
+            app:layout_constraintBottom_toBottomOf="@id/tv_rotate_left"
+            app:layout_constraintLeft_toRightOf="@id/tv_scale_down"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toTopOf="@id/tv_rotate_left" />
 
-            <LinearLayout
-                android:id="@+id/ll_rotate_l"
-                android:layout_width="140dp"
-                android:layout_height="wrap_content"
-                android:clickable="true"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:gravity="center_vertical"
-                android:background="@drawable/menu_heighlight"
-                android:layout_above="@+id/line3" >
+        <TextView
+            android:id="@+id/tv_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:text="@string/manual_skip"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            app:layout_constraintRight_toRightOf="@id/tv_timer_set"
+            app:layout_constraintTop_toTopOf="@id/tv_timer_set" />
 
-                <ImageView
-                    android:id="@+id/menu_left_rotate"
-                    android:layout_width="60dp"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="center"
-                    android:src="@drawable/left_rotation" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/left_rotation"
-                    android:textColor="#FFFFFFFF" />
-            </LinearLayout>
-
-            <View
-                android:id="@+id/line3"
-                android:layout_width="140dp"
-                android:layout_height="1dp"
-                android:layout_above="@+id/ll_scale_up"
-                android:layout_marginBottom="10dp"
-                android:background="#90ffffff" />
-
-            <LinearLayout
-                android:id="@+id/ll_scale_up"
-                android:layout_width="140dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:gravity="center_vertical"
-                android:background="@drawable/menu_heighlight"
-                android:layout_height="wrap_content"
-                android:layout_above="@+id/line4" >
-
-                <ImageView
-                    android:id="@+id/iv_scale_up"
-                    android:layout_width="60dp"
-                    android:layout_height="match_parent"
-                    android:layout_alignStart="@+id/ll_scale_up"
-                    android:layout_alignBottom="@+id/ll_scale_up"
-                    android:layout_gravity="center"
-                    android:src="@drawable/scale_up" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:focusable="false"
-                    android:text="@string/scale_up"
-                    android:textColor="#FFFFFFFF" />
-            </LinearLayout>
-
-            <View
-                android:id="@+id/line4"
-                android:layout_width="140dp"
-                android:layout_height="1dp"
-                android:layout_above="@+id/ll_scale_down"
-                android:layout_marginBottom="10dp"
-                android:background="#90ffffff" />
-            <LinearLayout
-                android:id="@+id/ll_scale_down"
-                android:layout_width="140dp"
-                android:layout_height="wrap_content"
-                android:clickable="true"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:gravity="center_vertical"
-                android:background="@drawable/menu_heighlight"
-                android:layout_above="@+id/line5" >
-
-                <ImageView
-                    android:id="@+id/iv_scale_down"
-                    android:layout_width="60dp"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="center"
-                    android:src="@drawable/scale_down" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/scale_down"
-                    android:textColor="#FFFFFFFF" />
-            </LinearLayout>
-
-            <View
-                android:id="@+id/line5"
-                android:layout_width="140dp"
-                android:layout_height="1dp"
-                android:layout_alignParentBottom="true"
-                android:layout_marginBottom="80dp"
-                android:background="#90DADADA" />
-        </RelativeLayout>
     <ImageView
         android:id="@+id/left_array"
         android:layout_width="100dp"
         android:layout_height="100dp"
         android:src="@drawable/left"
         android:visibility="invisible"
-        android:layout_centerVertical="true"
-        android:layout_alignParentLeft="true"
-        />
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
     <ImageView
         android:id="@+id/right_array"
         android:layout_width="100dp"
         android:layout_height="100dp"
         android:src="@drawable/right"
         android:visibility="invisible"
-        android:layout_centerVertical="true"
-        android:layout_alignParentRight="true"
-        />
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
     <ImageView
         android:id="@+id/top_array"
         android:layout_width="100dp"
         android:layout_height="100dp"
         android:src="@drawable/top"
         android:visibility="invisible"
-        android:layout_centerHorizontal="true"
-        android:layout_alignParentTop="true"
-        />
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
     <ImageView
         android:id="@+id/bottom_array"
         android:layout_width="100dp"
         android:layout_height="100dp"
         android:src="@drawable/bottom"
         android:visibility="invisible"
-        android:layout_centerHorizontal="true"
-        android:layout_alignParentBottom="true"
-        />
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        tools:visibility="visible" />
 
     <Button
         android:id="@+id/mNextButton"
-        android:text="下一张"
-        android:padding="10dp"
-        android:visibility="gone"
-        android:layout_marginBottom="20dp"
-        android:layout_alignParentBottom="true"
-        android:layout_centerInParent="true"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
-</RelativeLayout>
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="200dp"
+        android:padding="10dp"
+        android:text="下一张"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        tools:ignore="HardcodedText" />
+
+    <TextView
+        android:id="@+id/vi_scale_state"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="50dp"
+        android:background="@drawable/shape_menu_parent"
+        android:clickable="false"
+        android:focusable="false"
+        android:padding="10dp"
+        android:text="@string/scale_model_notice"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:visibility="gone"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -23,6 +23,9 @@
     <string name="usb_eject">"Usb多媒体设备拔出，退出"</string>
     <string name="scale_up">"放大"</string>
     <string name="scale_down">"缩小"</string>
+    <string name="timer_set">"定时"</string>
+    <string name="manual_skip">"手动"</string>
     <string name="scale_to_maximized">"已经最大化"</string>
     <string name="scale_to_minimized">"已经最小化"</string>
+    <string name="scale_model_notice">"缩放模式\n点击返回键退出"</string>
 </resources>

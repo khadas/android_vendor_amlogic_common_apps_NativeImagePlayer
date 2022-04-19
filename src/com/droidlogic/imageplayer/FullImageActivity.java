@@ -15,6 +15,7 @@
  *limitations under the License.
  ******************************************************************/
 package com.droidlogic.imageplayer;
+
 import android.widget.Button;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
@@ -26,7 +27,6 @@ import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.Manifest;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -38,21 +38,17 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.Size;
 import android.view.KeyEvent;
-import android.annotation.NonNull;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
 import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
-import android.widget.FrameLayout;
-import android.widget.LinearLayout;
 import android.widget.ProgressBar;
-import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.os.IBinder;
 import android.os.Parcel;
@@ -60,15 +56,20 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.view.SurfaceControl;
 import android.graphics.Rect;
+
 import java.io.File;
 import java.io.FileDescriptor;
 import java.lang.reflect.Method;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Locale;
+
 import android.view.animation.RotateAnimation;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.ScaleAnimation;
+
 import androidx.core.app.ActivityCompat;
+
 import com.droidlogic.imageplayer.decoder.ImagePlayer;
 
 
@@ -113,24 +114,29 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     };
     private static final String SURFACE_COMPOSER_INTERFACE_KEY = "android.ui.ISurfaceComposer";
     private boolean mPlayPicture;
-    private RelativeLayout mMenu;
+    private ViewGroup mMenu;
     private ImagePlayer mImageplayer;
     private SurfaceView mSurfaceView;
-    private Animation mOutAnimation;
-    private Animation mLeftInAnimation;
+    private Animation mMenuOutAnimation;
     private Animation mMenuInAnimation;
     private ProgressBar mLoadingProgress;
-    private LinearLayout mRotateLLay;
-    private LinearLayout mRotateRlay;
-    private LinearLayout mScaleUp;
-    private LinearLayout mScaleDown;
+    private View mRotateLLay;
+    private View mRotateRlay;
+    private View mScaleUp;
+    private View mScaleDown;
+    private View mTimerSet;
+    private TextView mTvAutoSkipTime;
+    private View mMenuFocusView;
     private ViewGroup mRootView;
+    private TextView mScaleStateView;
     private float mScale = SCALE_ORI;
     private float mRotateScale = SCALE_ORI;
     private int mIndex;
     private String mCurPicPath;
     private int mTransferX;
     private int mTransferY;
+    private boolean isScaleModel = false;
+    private int mAutoSkipTime;
     public final BroadcastReceiver mUsbScanner = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -158,8 +164,8 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     };
     private ArrayList<Uri> mImageList = new ArrayList<Uri>();
     private ArrayList<String> mPathList = new ArrayList<String>();
-    private final int mOsdWidth = getProperties("ro.surface_flinger.max_graphics_width",1920);
-    private final int mOsdHeight = getProperties("ro.surface_flinger.max_graphics_height",1080);
+    private final int mOsdWidth = getProperties("ro.surface_flinger.max_graphics_width", 1920);
+    private final int mOsdHeight = getProperties("ro.surface_flinger.max_graphics_height", 1080);
     private String mCurrenAXIS;
     private int mSlideIndex;
     private int mDegress;
@@ -251,7 +257,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             mSurfaceView.setVisibility(View.VISIBLE);
             mImageplayer.setPrepareListener(this);
         }
-
     }
 
     public void adjustViewSize(int degree, float scale) {
@@ -294,7 +299,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         intentFilter.addDataScheme("file");
         registerReceiver(mUsbScanner, intentFilter);
 
-
         Intent intent = getIntent();
         if (intent.getBooleanExtra(KEY_DISMISS_KEYGUARD, false)) {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
@@ -307,43 +311,46 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             finish();
             return;
         }
-        if (getProperties("rw.app.imageplayer.debug",false)) {
+
+        mImageList = initFileList(mUri);
+
+        if (getProperties("rw.app.imageplayer.debug", false)) {
             initNextButton();
         }
         Log.d(TAG, "onCreate uri " + mUri + " scheme " + mUri.getScheme() + " path " + mUri.getPath());
     }
+
     private static boolean getProperties(String key, boolean def) {
         boolean defVal = def;
         try {
             Class properClass = Class.forName("android.os.SystemProperties");
-            Method getMethod = properClass.getMethod("getBoolean",String.class,boolean.class);
-            defVal = (boolean)getMethod.invoke(null,key,def);
+            Method getMethod = properClass.getMethod("getBoolean", String.class, boolean.class);
+            defVal = (boolean) getMethod.invoke(null, key, def);
         } catch (Exception ex) {
             ex.printStackTrace();
         } finally {
-            Log.d(TAG,"getProperty:"+key+" defVal:"+defVal);
+            Log.d(TAG, "getProperty:" + key + " defVal:" + defVal);
             return defVal;
         }
-
     }
-     private static int getProperties(String key, int def) {
+
+    private static int getProperties(String key, int def) {
         int defVal = def;
         try {
             Class properClass = Class.forName("android.os.SystemProperties");
-            Method getMethod = properClass.getMethod("getInt",String.class,int.class);
-            defVal = (int)getMethod.invoke(null,key,def);
+            Method getMethod = properClass.getMethod("getInt", String.class, int.class);
+            defVal = (int) getMethod.invoke(null, key, def);
         } catch (Exception ex) {
             ex.printStackTrace();
         } finally {
-            Log.d(TAG,"getProperty:"+key+" defVal:"+defVal);
+            Log.d(TAG, "getProperty:" + key + " defVal:" + defVal);
             return defVal;
         }
-
     }
+
     private void initNextButton() {
-        mImageList = initFileList(mUri);
         Log.v(TAG, "mImageList count:" + mImageList.size());
-        Button btn =(Button)findViewById(R.id.mNextButton);
+        Button btn = (Button) findViewById(R.id.mNextButton);
         btn.setVisibility(View.VISIBLE);
         btn.setFocusable(true);
         btn.setFocusableInTouchMode(true);
@@ -351,15 +358,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         findViewById(R.id.mNextButton).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                mIndex++;
-                if (mIndex>= mImageList.size()) {
-                    mIndex = 0;
-                }
-                mUri = mImageList.get(mIndex);
-                mImageplayer.release();
-                mSurfaceView.setVisibility(View.GONE);
-                Log.v(TAG, "mImageplayer release");
-                showBmp();
+                changePicture(true, true);
             }
         });
     }
@@ -388,6 +387,12 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
                     file.getName().toUpperCase().endsWith(".PNG")
                     ||  file.getName().toUpperCase().endsWith(".JPEG"))*/) {
                 items.add(Uri.fromFile(file));
+            }
+        }
+        for (int i = 0; i < items.size(); i++) {
+            Uri fileUri = items.get(i);
+            if (fileUri.getPath().equals(path)) {
+                mIndex = i;
             }
         }
         return items;
@@ -486,21 +491,48 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         return null;
     }
 
+    private void changePicture(boolean next, boolean forceSkip) {
+        Log.i(TAG, "skipPicture-->next:" + next + "\tforceSkip:" + forceSkip);
+        delaySkip();
+        if (!forceSkip && isScaleModel) return;
+        if (next) {
+            mIndex++;
+        } else {
+            mIndex--;
+        }
+        if (mIndex >= mImageList.size()) {
+            mIndex = 0;
+        } else if (mIndex < 0) {
+            mIndex = mImageList.size() - 1;
+        }
+        Log.i(TAG, "skipPicture-->mIndex:" + mIndex);
+        mUri = mImageList.get(mIndex);
+        mImageplayer.release();
+        mSurfaceView.setVisibility(View.GONE);
+        Log.v(TAG, "mImageplayer release");
+        showBmp();
+    }
+
     private void initViews() {
-        mRotateLLay = findViewById(R.id.ll_rotate_r);
-        mRotateRlay = findViewById(R.id.ll_rotate_l);
-        mScaleUp = findViewById(R.id.ll_scale_up);
-        mScaleDown = findViewById(R.id.ll_scale_down);
+        mRotateLLay = findViewById(R.id.tv_rotate_right);
+        mRotateRlay = findViewById(R.id.tv_rotate_left);
+        mScaleUp = findViewById(R.id.tv_scale_up);
+        mScaleDown = findViewById(R.id.tv_scale_down);
+        mTimerSet = findViewById(R.id.tv_timer_set);
+        mScaleStateView = findViewById(R.id.vi_scale_state);
+        mTvAutoSkipTime = findViewById(R.id.tv_time);
 
         mRotateRlay.setOnClickListener(this);
         mRotateLLay.setOnClickListener(this);
         mScaleUp.setOnClickListener(this);
         mScaleDown.setOnClickListener(this);
+        mTimerSet.setOnClickListener(this);
 
         mRotateRlay.setOnFocusChangeListener(this);
         mRotateLLay.setOnFocusChangeListener(this);
         mScaleUp.setOnFocusChangeListener(this);
         mScaleDown.setOnFocusChangeListener(this);
+        mTimerSet.setOnFocusChangeListener(this);
 
         mSurfaceView = findViewById(R.id.surfaceview_show_picture);
         mSurfaceView.getHolder().addCallback(new SurfaceCallback());
@@ -511,61 +543,94 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         mSurfaceView.setFocusableInTouchMode(true);
         mSurfaceView.setOnClickListener(this);
         mMenu = findViewById(R.id.menu_layout);
-        mRootView = (ViewGroup)findViewById(R.id.root);
+        mRootView = (ViewGroup) findViewById(R.id.root);
         mLoadingProgress = findViewById(R.id.loading_image);
-        mOutAnimation = AnimationUtils.loadAnimation(this,
-                R.anim.menu_and_left_out);
-        mLeftInAnimation = AnimationUtils.loadAnimation(this, R.anim.left_in);
+        mMenuOutAnimation = AnimationUtils.loadAnimation(this, R.anim.menu_out);
+        mMenuOutAnimation.setAnimationListener(new AnimListener() {
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                mMenu.setVisibility(View.INVISIBLE);
+                mScaleStateView.setVisibility(isScaleModel ? View.VISIBLE : View.INVISIBLE);
+                mScaleStateView.setText(R.string.scale_model_notice);
+            }
+        });
         mMenuInAnimation = AnimationUtils.loadAnimation(this, R.anim.menu_in);
+        mMenuInAnimation.setAnimationListener(new AnimListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {
+                mMenu.setVisibility(View.VISIBLE);
+                mScaleStateView.setVisibility(View.INVISIBLE);
+            }
+        });
+
+        mRotateLLay.postDelayed(() -> displayMenu(true), 50);
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        Log.d(TAG, "onKeyDown" + keyCode + "--" + mMenu.getVisibility() + "--" + mDegress);
+        Log.d(TAG, "onKeyDown" + keyCode + "--" + mMenu.getVisibility() + "--" + mDegress + "--" + event.getRepeatCount());
         if ((keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
-            if (mMenu.getVisibility() == View.VISIBLE) {
-                mUIHandler.removeMessages(DISMISS_MENU);
-                mUIHandler.sendEmptyMessage(DISMISS_MENU);
-            } else {
-                displayMenu(true);
+            if (event.getRepeatCount() == 0) {
+                if (mMenu.getVisibility() == View.VISIBLE) {
+                    mUIHandler.removeMessages(DISMISS_MENU);
+                    mUIHandler.sendEmptyMessage(DISMISS_MENU);
+                } else {
+                    displayMenu(true);
+                }
             }
-
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (mMenu.getVisibility() == View.VISIBLE) {
-                mUIHandler.removeMessages(DISMISS_MENU);
-                mUIHandler.sendEmptyMessage(DISMISS_MENU);
-            } else {
-                FullImageActivity.this.finish();
+            if (event.getRepeatCount() == 0) {
+                if (mMenu.getVisibility() == View.VISIBLE) {
+                    mUIHandler.removeMessages(DISMISS_MENU);
+                    mUIHandler.sendEmptyMessage(DISMISS_MENU);
+                } else {
+                    if (isScaleModel) {
+                        restoreView(1);
+                    } else {
+                        FullImageActivity.this.finish();
+                    }
+                }
             }
-
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && mMenu.getVisibility() != View.VISIBLE) {
-            mUIHandler.removeMessages(SHOW_LEFT_ANIM);
-            mUIHandler.sendEmptyMessage(SHOW_LEFT_ANIM);
-            if (translate(-1,0)) {
-                Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+            if (isScaleModel) {
+                mUIHandler.removeMessages(SHOW_LEFT_ANIM);
+                mUIHandler.sendEmptyMessage(SHOW_LEFT_ANIM);
+                if (!translate(-1, 0)) {
+                    Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+                }
+            } else if (event.getRepeatCount() == 0) {
+                changePicture(false, true);
             }
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP && mMenu.getVisibility() != View.VISIBLE) {
-            mUIHandler.removeMessages(SHOW_TOP_ANIM);
-            mUIHandler.sendEmptyMessage(SHOW_TOP_ANIM);
-            if (translate(0,-1)) {
-                Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+            if (isScaleModel) {
+                mUIHandler.removeMessages(SHOW_TOP_ANIM);
+                mUIHandler.sendEmptyMessage(SHOW_TOP_ANIM);
+                if (!translate(0, -1)) {
+                    Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+                }
             }
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && mMenu.getVisibility() != View.VISIBLE) {
-            mUIHandler.removeMessages(SHOW_RIGHT_ANIM);
-            mUIHandler.sendEmptyMessage(SHOW_RIGHT_ANIM);
-            if (translate(1,0)) {
-                Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+            if (isScaleModel) {
+                mUIHandler.removeMessages(SHOW_RIGHT_ANIM);
+                mUIHandler.sendEmptyMessage(SHOW_RIGHT_ANIM);
+                if (!translate(1, 0)) {
+                    Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+                }
+            } else if (event.getRepeatCount() == 0) {
+                changePicture(true, true);
             }
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && mMenu.getVisibility() != View.VISIBLE) {
-            mUIHandler.removeMessages(SHOW_BOTTOM_ANIM);
-            mUIHandler.sendEmptyMessage(SHOW_BOTTOM_ANIM);
-            if (translate(0,1)) {
-                Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+            if (isScaleModel) {
+                mUIHandler.removeMessages(SHOW_BOTTOM_ANIM);
+                mUIHandler.sendEmptyMessage(SHOW_BOTTOM_ANIM);
+                if (!translate(0, 1)) {
+                    Toast.makeText(FullImageActivity.this, R.string.not_display, Toast.LENGTH_LONG).show();
+                }
             }
             return true;
         }
@@ -574,14 +639,19 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
     private void displayMenu(boolean show) {
         if (!show) {
-            mMenu.startAnimation(mLeftInAnimation);
-            mMenu.setVisibility(View.GONE);
+            mMenu.startAnimation(mMenuOutAnimation);
+            Log.d(TAG, "displayMenu set menu inVisible");
         } else {
             Log.d(TAG, "displayMenu set menu visible");
-            mRotateRlay.requestFocus();
-            mMenu.startAnimation(mOutAnimation);
-            mMenu.setVisibility(View.VISIBLE);
-
+            mMenu.requestLayout();
+            mMenu.startAnimation(mMenuInAnimation);
+            View view = mMenuFocusView;
+            if (view == null) {
+                view = mMenu.getChildAt(0);
+            }
+            if (view != null) {
+                view.post(view::requestFocus);
+            }
             mUIHandler.sendEmptyMessageDelayed(DISMISS_MENU, DISPLAY_MENU_TIME);
         }
     }
@@ -597,15 +667,16 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         } else {
             mDegress -= ROTATION_DEGREE;
         }
-        mDegress = mDegress%360;
+        mDegress = mDegress % 360;
         Log.d(TAG, "rotate degree " + mPredegree + " --->" + mDegress);
         AnimationSet setAnimation = new AnimationSet(true);
-        Animation alpha = new AlphaAnimation(0.5f,1);
-        Animation rotate = new RotateAnimation(mPredegree,mDegress,Animation.RELATIVE_TO_SELF,0.5f,Animation.RELATIVE_TO_SELF,0.5f);
+        Animation alpha = new AlphaAnimation(0.5f, 1);
+        Animation rotate = new RotateAnimation(mPredegree, mDegress, Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
 
         float scaleSize = needScaleAnimation();
         if (scaleSize > 0) {
-            Animation scale1 = new ScaleAnimation(1,scaleSize,1,scaleSize,Animation.RELATIVE_TO_SELF,0.5f,Animation.RELATIVE_TO_SELF,0.5f);
+            Log.d(TAG, "rotate degree needScaleAnimation:scaleSize" + " --->" + scaleSize);
+            Animation scale1 = new ScaleAnimation(1, scaleSize, 1, scaleSize, Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
             setAnimation.addAnimation(scale1);
         }
 
@@ -620,8 +691,8 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
             @Override
             public void onAnimationEnd(Animation animation) {
-           //     if (mScale == SCALE_ORI) {
-                    mImageplayer.setRotate((mDegress + 360) % 360);
+                //     if (mScale == SCALE_ORI) {
+                mImageplayer.setRotate((mDegress + 360) % 360);
              /*   } else {
                     mImageplayer.setRotateScale((mDegress + 360) % 360, mScale, mScale);
                 }*/
@@ -632,34 +703,35 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
             }
         });
-       mRootView.startAnimation(setAnimation);
-       mRotateScale = scaleSize;
+        mRootView.startAnimation(setAnimation);
+        mRotateScale = scaleSize;
     }
-    private boolean translate(int x,int y) {
-        Log.d("TAG","translate"+x+";"+y);
+
+    private boolean translate(int x, int y) {
+        Log.d("TAG", "translate" + x + ";" + y);
         int xaxis = x;
         int yaxis = y;
-        int degree  = (mDegress+360)%360;
+        int degree = (mDegress + 360) % 360;
         if (degree == 90) {
             xaxis = y;
             yaxis = -x;
-        }else if (degree == 180) {
+        } else if (degree == 180) {
             xaxis = -x;
             yaxis = -y;
-        }else if (degree == 270) {
+        } else if (degree == 270) {
             xaxis = -y;
             yaxis = x;
         }
         int tempX = mTransferX + xaxis;
         int tempY = mTransferY + yaxis;
-        int step = (int)((mScale*10 - SCALE_ORI*10)/(SCALE_RATIO*10));
+        int step = (int) ((mScale * 10 - SCALE_ORI * 10) / (SCALE_RATIO * 10));
         if (Math.abs(tempX) > step || Math.abs(tempY) > step) {
             return false;
         }
         float scaleSize = mScale;//*mRotateScale;
-        int osdWidthStep = (int)Math.ceil((mOsdWidth*scaleSize - mOsdWidth)/(2*step*scaleSize));
-        int osdHeightStep = (int)Math.ceil((mOsdHeight*scaleSize - mOsdHeight)/(2*step*scaleSize));
-        Log.d("TAG","osdWidthStep"+osdWidthStep+":"+osdHeightStep+"("+tempX+":"+tempY+"mRotateScale"+mRotateScale);
+        int osdWidthStep = (int) Math.ceil((mOsdWidth * scaleSize - mOsdWidth) / (2 * step * scaleSize));
+        int osdHeightStep = (int) Math.ceil((mOsdHeight * scaleSize - mOsdHeight) / (2 * step * scaleSize));
+        Log.d("TAG", "osdWidthStep" + osdWidthStep + ":" + osdHeightStep + "(" + tempX + ":" + tempY + "mRotateScale" + mRotateScale);
         /*if (false&&mDegress%180 != 0){
             int mtemp = osdWidthStep;
             osdWidthStep = osdHeightStep;
@@ -667,45 +739,48 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         }*/
         if (Math.abs(tempX) == step || Math.abs(tempY) == step) {
             if (tempX == 0) {
-                mRootView.scrollTo(0, tempY*osdHeightStep+30*(tempY/Math.abs(tempY)));
-            }else if (tempY == 0) {
-                mRootView.scrollTo(tempX*osdWidthStep+30*(tempX/Math.abs(tempX)), 0);
-            }else {
-                mRootView.scrollTo(tempX*osdWidthStep+30*(tempX/Math.abs(tempX)), tempY*osdHeightStep+30*(tempY/Math.abs(tempY)));
+                mRootView.scrollTo(0, tempY * osdHeightStep + 30 * (tempY / Math.abs(tempY)));
+            } else if (tempY == 0) {
+                mRootView.scrollTo(tempX * osdWidthStep + 30 * (tempX / Math.abs(tempX)), 0);
+            } else {
+                mRootView.scrollTo(tempX * osdWidthStep + 30 * (tempX / Math.abs(tempX)), tempY * osdHeightStep + 30 * (tempY / Math.abs(tempY)));
             }
-        }else {
-            mRootView.scrollTo(tempX*osdWidthStep, tempY*osdHeightStep);
+        } else {
+            mRootView.scrollTo(tempX * osdWidthStep, tempY * osdHeightStep);
         }
         mTransferX = tempX;
         mTransferY = tempY;
         return true;
     }
-    private float needScaleAnimation(){
-        int rvW = mRootView.getRight()-mRootView.getLeft();
-        int rvH = mRootView.getBottom()-mRootView.getTop();
-        Log.d(TAG,"mRootView.getLeft()"+mRootView.getLeft()+":"+mRootView.getRight()+":"+
-            mRootView.getTop()+":"+mRootView.getBottom());
+
+    private float needScaleAnimation() {
+        int rvW = mRootView.getRight() - mRootView.getLeft();
+        int rvH = mRootView.getBottom() - mRootView.getTop();
+        Log.d(TAG, "mRootView.getLeft()" + mRootView.getLeft() + ":" + mRootView.getRight() + ":" +
+                mRootView.getTop() + ":" + mRootView.getBottom());
         if (rvW > mOsdHeight && rvH < mOsdWidth ||
-                    rvW < mOsdHeight && rvH > mOsdWidth) {
-            if (mDegress%180 != 0 ) {
-                return 1.0f*mOsdHeight/mOsdWidth;
+                rvW < mOsdHeight && rvH > mOsdWidth) {
+            if (mDegress % 180 != 0) {
+                return 1.0f * mOsdHeight / mOsdWidth;
             }
         }
         return 0f;
     }
+
     private void update() {
         SurfaceControl sc = mSurfaceView.getSurfaceControl();
         try {
             Class scClass = Class.forName("android.view.SurfaceView");
             Method getMethod = scClass.getDeclaredMethod("getSurfaceRenderPosition");
-            Rect rect = (Rect)getMethod.invoke(mSurfaceView);
-            Log.d("TAG","rect"+rect);
-           // getMethod = scClass.getDeclaredMethod("setFrame",int.class,int.class,int.class,int.class);
-          //  getMethod.invoke(mSurfaceView,true,true);
+            Rect rect = (Rect) getMethod.invoke(mSurfaceView);
+            Log.d("TAG", "rect" + rect);
+            // getMethod = scClass.getDeclaredMethod("setFrame",int.class,int.class,int.class,int.class);
+            //  getMethod.invoke(mSurfaceView,true,true);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
     }
+
     @Override
     public void played() {
         if (mLoadingProgress.getVisibility() == View.VISIBLE) {
@@ -715,21 +790,23 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         }
         mImageplayer.setPrepareListener(null);
     }
+
     @Override
     public void playerr() {
-        Log.d(TAG,"play error");
+        Log.d(TAG, "play error");
         mRootView.clearAnimation();
         mScale = SCALE_ORI;
         mRotateScale = SCALE_ORI;
         mRootView.setScaleX(SCALE_ORI);
         mRootView.setScaleY(SCALE_ORI);
         mImageplayer.nativeReset();
-        final String errStr = mCurPicPath+getString(R.string.not_display);
+        final String errStr = mCurPicPath + getString(R.string.not_display);
         runOnUiThread(() -> {
             Toast.makeText(this, errStr, Toast.LENGTH_SHORT).show();
         });
         mImageplayer.release();
     }
+
     @Override
     public void Prepared() {
         Log.d(TAG, "prepared");
@@ -740,15 +817,51 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         if (mDegress != DEFAULT_DEGREE) {
             mDegress = DEFAULT_DEGREE;
         }
-        mTransferX = 0;
-        mTransferY = 0;
         mRootView.clearAnimation();
-        mScale = SCALE_ORI;
-        mRotateScale = SCALE_ORI;
-        mRootView.setScaleX(SCALE_ORI);
-        mRootView.setScaleY(SCALE_ORI);
+        restoreView(SCALE_ORI);
         mImageplayer.show();
         adjustViewSize(DEFAULT_DEGREE, SCALE_ORI);
+    }
+
+    private void restoreView(float scale) {
+        setModelEnable(false);
+        mScaleStateView.setVisibility(View.INVISIBLE);
+        mScale = scale;
+        mRotateScale = scale;
+        setScale(mRotateScale);
+        mTransferX = 0;
+        mTransferY = 0;
+        mRootView.scrollTo(0, 0);
+    }
+
+    private void setModelEnable(boolean isEnable) {
+        isScaleModel = isEnable;
+    }
+
+    private void toggleAutoSkipTime() {
+        mAutoSkipTime += 5;
+        if (mAutoSkipTime > 15) {
+            mAutoSkipTime = 0;
+        }
+        if (mAutoSkipTime == 0) {
+            mTvAutoSkipTime.setText(R.string.manual_skip);
+        } else {
+            mTvAutoSkipTime.setText(String.format(Locale.getDefault(), "%ds", mAutoSkipTime));
+        }
+        delaySkip();
+    }
+
+    private final Runnable skipTask = () -> {
+        changePicture(true, false);
+        Log.e(TAG, "SkipRunnable skipPicture");
+    };
+
+    private void delaySkip() {
+        mUIHandler.removeCallbacks(skipTask);
+        if (mAutoSkipTime > 0) {
+            Log.e(TAG, "SkipRunnable postDelayed:" + mAutoSkipTime);
+            mUIHandler.postDelayed(skipTask, mAutoSkipTime * 1000);
+        }
     }
 
     private void scale(boolean scaleUp) {
@@ -762,8 +875,9 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         } else {
             mScale -= SCALE_RATIO;
         }
+
         mScale = (float) (Math.round(mScale * 100) * 1.0 / 100);
-        Log.d(TAG, "scale " + mScale+"-"+mRotateScale);
+        Log.d(TAG, "scale " + mScale + "-" + mRotateScale);
 
         // value like 1.999999 could continue to be enlarged or else
         if ((SCALE_MAX - SCALE_ERR) <= mScale) {
@@ -778,6 +892,20 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             mScale = SCALE_MIN + SCALE_RATIO;
             return;
         }
+
+        setModelEnable(mScale != 1);
+
+        setScale(mScale);
+    }
+
+    private void setScale(float scale) {
+        if (null == mImageplayer || !mImageplayer.CurrentBmpAvailable()) {
+            Log.e(TAG, "scale imageplayer null");
+            return;
+        }
+        Log.e(TAG, "scale setScale :" + scale);
+
+        this.mScale = scale;
         mRootView.setScaleX(mScale);
         mRootView.setScaleY(mScale);
         if (mImageplayer != null) {
@@ -792,22 +920,23 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     }
 
     private void updateSurface() {
-         Log.d("TAG","updateSurface 1006");
-         IBinder mSurfaceFlinger = ServiceManager.getService("SurfaceFlinger");
-         try {
-             if (mSurfaceFlinger != null) {
-                 final Parcel data = Parcel.obtain();
-                 final Parcel reply = Parcel.obtain();
-                 data.writeInterfaceToken(SURFACE_COMPOSER_INTERFACE_KEY);
+        Log.d("TAG", "updateSurface 1006");
+        IBinder mSurfaceFlinger = ServiceManager.getService("SurfaceFlinger");
+        try {
+            if (mSurfaceFlinger != null) {
+                final Parcel data = Parcel.obtain();
+                final Parcel reply = Parcel.obtain();
+                data.writeInterfaceToken(SURFACE_COMPOSER_INTERFACE_KEY);
                 // data.writeInt(0);
-                 mSurfaceFlinger.transact(1006, data, reply, 0 /* flags */);
-                 reply.recycle();
-                 data.recycle();
-             }
-          } catch (RemoteException ex) {
-             ex.printStackTrace();
-          }
+                mSurfaceFlinger.transact(1006, data, reply, 0 /* flags */);
+                reply.recycle();
+                data.recycle();
+            }
+        } catch (RemoteException ex) {
+            ex.printStackTrace();
+        }
     }
+
     @Override
     protected void onStart() {
         super.onStart();
@@ -816,9 +945,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         mImageplayer = ImagePlayer.getInstance();
         mImageplayer.initPlayer();
         showBmp();
-
         mUIHandler.sendEmptyMessageDelayed(DISMISS_MENU, DISPLAY_MENU_TIME);
-        mRotateRlay.requestFocus();
     }
 
     @Override
@@ -838,8 +965,8 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     public void onDestroy() {
         super.onDestroy();
         Log.d(TAG, "onDestroy()");
-
         unregisterReceiver(mUsbScanner);
+        mUIHandler.removeCallbacksAndMessages(null);
     }
 
     /* (non-Javadoc)
@@ -847,25 +974,28 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
      */
     @Override
     public void onClick(View v) {
-        mRootView.scrollTo(0,0);
+        mRootView.scrollTo(0, 0);
         mTransferX = 0;
         mTransferY = 0;
         switch (v.getId()) {
-            case R.id.ll_rotate_r:
+            case R.id.tv_rotate_right:
                 mUIHandler.removeMessages(ROTATE_R);
                 mUIHandler.sendEmptyMessage(ROTATE_R);
                 break;
-            case R.id.ll_rotate_l:
+            case R.id.tv_rotate_left:
                 mUIHandler.removeMessages(ROTATE_L);
                 mUIHandler.sendEmptyMessage(ROTATE_L);
                 break;
-            case R.id.ll_scale_up:
+            case R.id.tv_scale_up:
                 mUIHandler.removeMessages(SCALE_UP);
                 mUIHandler.sendEmptyMessage(SCALE_UP);
                 break;
-            case R.id.ll_scale_down:
+            case R.id.tv_scale_down:
                 mUIHandler.removeMessages(SCALE_DOWN);
                 mUIHandler.sendEmptyMessage(SCALE_DOWN);
+                break;
+            case R.id.tv_timer_set:
+                toggleAutoSkipTime();
                 break;
             default:
                 break;
@@ -881,6 +1011,15 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     @Override
     public void onFocusChange(View v, boolean hasFocus) {
         if (hasFocus) {
+            switch (v.getId()) {
+                case R.id.tv_rotate_right:
+                case R.id.tv_rotate_left:
+                case R.id.tv_scale_up:
+                case R.id.tv_scale_down:
+                case R.id.tv_timer_set:
+                    mMenuFocusView = v;
+                    break;
+            }
             mUIHandler.removeMessages(DISMISS_MENU);
             mUIHandler.sendEmptyMessageDelayed(DISMISS_MENU, DISPLAY_MENU_TIME);
         }
@@ -890,7 +1029,15 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         final ImageView left = findViewById(R.id.left_array);
         if (left != null) {
             left.clearAnimation();
+            left.setVisibility(View.VISIBLE);
             AnimationSet animationSet = (AnimationSet) AnimationUtils.loadAnimation(this, R.anim.left_anim);
+            animationSet.setAnimationListener(new AnimListener() {
+                @Override
+                public void onAnimationEnd(Animation animation) {
+                    super.onAnimationEnd(animation);
+                    left.setVisibility(View.GONE);
+                }
+            });
             left.startAnimation(animationSet);
         }
     }
@@ -899,8 +1046,16 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         ImageView right = findViewById(R.id.right_array);
         if (right != null) {
             right.clearAnimation();
+            right.setVisibility(View.VISIBLE);
             Log.d("TAG", "right is null> no");
             AnimationSet animationSet = (AnimationSet) AnimationUtils.loadAnimation(this, R.anim.right_anim);
+            animationSet.setAnimationListener(new AnimListener() {
+                @Override
+                public void onAnimationEnd(Animation animation) {
+                    super.onAnimationEnd(animation);
+                    right.setVisibility(View.GONE);
+                }
+            });
             right.startAnimation(animationSet);
         }
     }
@@ -909,7 +1064,15 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         ImageView top = findViewById(R.id.top_array);
         if (top != null) {
             top.clearAnimation();
+            top.setVisibility(View.VISIBLE);
             AnimationSet animationSet = (AnimationSet) AnimationUtils.loadAnimation(this, R.anim.top_anim);
+            animationSet.setAnimationListener(new AnimListener() {
+                @Override
+                public void onAnimationEnd(Animation animation) {
+                    super.onAnimationEnd(animation);
+                    top.setVisibility(View.GONE);
+                }
+            });
             top.startAnimation(animationSet);
         }
     }
@@ -918,7 +1081,15 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         ImageView bottom = findViewById(R.id.bottom_array);
         if (bottom != null) {
             bottom.clearAnimation();
+            bottom.setVisibility(View.VISIBLE);
             AnimationSet animationSet = (AnimationSet) AnimationUtils.loadAnimation(this, R.anim.bottom_anim);
+            animationSet.setAnimationListener(new AnimListener() {
+                @Override
+                public void onAnimationEnd(Animation animation) {
+                    super.onAnimationEnd(animation);
+                    bottom.setVisibility(View.GONE);
+                }
+            });
             bottom.startAnimation(animationSet);
         }
     }
@@ -943,7 +1114,9 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
                 mImageplayer.stop();
             }
         }
+
     }
+
     void showBmp() {
         runAndShow();
     }

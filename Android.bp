@@ -22,7 +22,10 @@ android_app {
     jni_libs: ["libimage_jni"],
     platform_apis: true,
 
-    static_libs: ["androidx.appcompat_appcompat"],
+    static_libs: [
+    "androidx.appcompat_appcompat",
+    "androidx-constraintlayout_constraintlayout",
+    ],
     optimize: {
         enabled: false,
         proguard_flags_files: ["proguard.flags"],

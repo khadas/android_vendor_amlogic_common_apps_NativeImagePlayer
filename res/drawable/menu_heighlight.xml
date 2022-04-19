@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2012 Amlogic, Inc.
+<?xml version="1.0" encoding="utf-8"?><!-- Copyright (C) 2012 Amlogic, Inc.
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -14,9 +13,9 @@
      limitations under the License.
 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_focused="false" android:drawable="@drawable/nofocus" />
-    <item android:state_focused="true" android:state_pressed="false" android:state_selected="false"  android:drawable="@drawable/nofocus_light" ></item>
-    <item android:state_pressed="true" android:drawable="@drawable/highlight" ></item>
-    <item android:state_selected="true" android:drawable="@drawable/highlight" />
+    <item android:drawable="@drawable/nofocus" android:state_focused="false" />
+    <item android:drawable="@drawable/nofocus_light" android:state_focused="true" android:state_pressed="false" android:state_selected="false"></item>
+    <item android:drawable="@drawable/highlight" android:state_pressed="true"></item>
+    <item android:drawable="@drawable/highlight" android:state_selected="true" />
 </selector>
 
