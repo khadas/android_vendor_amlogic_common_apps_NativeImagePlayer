@@ -73,7 +73,7 @@ import androidx.core.app.ActivityCompat;
 import com.droidlogic.imageplayer.decoder.ImagePlayer;
 
 
-public class FullImageActivity extends Activity implements View.OnClickListener, View.OnFocusChangeListener, ImagePlayer.PrepareReadyListener {
+public class FullImageActivity extends Activity implements View.OnClickListener, View.OnFocusChangeListener, ImagePlayer.PrepareReadyListener, ActivityCompat.OnRequestPermissionsResultCallback{
     public static final int DISPLAY_MENU_TIME = 5000;
     public static final String ACTION_REVIEW = "com.android.camera.action.REVIEW";
     public static final String KEY_GET_CONTENT = "get-content";
@@ -212,13 +212,24 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         }
     };
 
-    public static void verifyStoragePermissions(Activity activity) {
+    public void verifyStoragePermissions(Activity activity) {
         int permission = ActivityCompat.checkSelfPermission(activity,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE);
         if (permission != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(activity, PERMISSIONS_STORAGE,
+            ActivityCompat.requestPermissions(FullImageActivity.this, PERMISSIONS_STORAGE,
                     REQUEST_EXTERNAL_STORAGE);
         }
+    }
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions,
+        int[] grantResults) {
+        if (requestCode == REQUEST_EXTERNAL_STORAGE) {
+            if (grantResults.length == 2 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                showBmp();
+                return;
+            }
+        }
+        Toast.makeText(FullImageActivity.this, R.string.permission, Toast.LENGTH_LONG).show();
     }
 
     private static int[] getSplitStr(String originalStr, String splitStr) {
