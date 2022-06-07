@@ -16,7 +16,12 @@ public class BmpInfoFractory {
         if (mimeType.contains("application")) {
             return null;
         } else if (mimeType.contains(TYPE_GIF)) {
-            return new GifBmpInfo();
+            GifBmpInfo info = new GifBmpInfo();
+            if (!info.setDataSrouce(filePath)) {
+                info.release();
+                return new BmpInfo();
+            }
+            return info;
         }
         return new BmpInfo();
     }

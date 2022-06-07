@@ -38,6 +38,7 @@ public class GifBmpInfo extends BmpInfo {
             mFrameCount = 0;
             mCurrentId = 0;
             mDecoderPtr = nativeSetGif(filePath);
+            if (mFrameCount <= 1) return false;
             if (mDecoderPtr <= 0) return false;
         } catch (Exception e) {
             e.printStackTrace();
@@ -65,6 +66,9 @@ public class GifBmpInfo extends BmpInfo {
     }
     @Override
     public void release() {
+        mBmpWidth = 0;
+        mBmpHeight = 0;
+        mSampleSize = 1;
         mDecoderPtr = 0;
         mFrameCount = 0;
         mCurrentId = 0;

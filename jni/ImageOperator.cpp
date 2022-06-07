@@ -169,10 +169,15 @@ bool ImageAlloc:: allocPixelRef(SkBitmap* bitmap) {
 ImageOperator::ImageOperator(JNIEnv *env):mEnv(env){
     mscreen.surfaceW = SURFACE_4K_WIDTH;
     mscreen.surfaceH = SURFACE_4K_HEIGHT;
+    isShown = false;
 }
 void ImageOperator::setSurfaceSize(int w,int h){
     mscreen.surfaceW = w;
     mscreen.surfaceH = h;
+}
+void ImageOperator::stopShown() {
+    ALOGE("---------stopShown--------");
+    isShown = false;
 }
 int ImageOperator::show(void *displayAddr) {
     if (mbitmap.mNativeHandler < 0 ) {
@@ -352,13 +357,14 @@ void ImageOperator::rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, ui
         uint8_t* crPlane, uint8_t* cbPlane, size_t chromaStep, size_t yStride, size_t chromaStride, SkColorType colorType) {
     uint8_t R, G, B;
     size_t index = 0;
-
+    isShown = true;
     for (size_t j = 0; j < height; j++) {
         uint8_t* cr = crPlane;
         uint8_t* cb = cbPlane;
         uint8_t* y = yPlane;
         bool jEven = (j & 1) == 0;
         for (size_t i = 0; i < width; i++) {
+            if (!isShown) return;
             if (colorType == kAlpha_8_SkColorType) {
                 uint8_t gray = rgbBuf[index++];
                 R = gray;

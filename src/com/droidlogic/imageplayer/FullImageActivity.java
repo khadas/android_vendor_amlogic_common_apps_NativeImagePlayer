@@ -225,7 +225,9 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         int[] grantResults) {
         if (requestCode == REQUEST_EXTERNAL_STORAGE) {
             if (grantResults.length == 2 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                showBmp();
+                if (mImageplayer.getPrepareListener() == null) {
+                    showBmp();
+                }
                 return;
             }
         }
@@ -265,7 +267,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         if (!mImageplayer.setDataSource(mCurPicPath)) {
             mUIHandler.sendEmptyMessageDelayed(NOT_DISPLAY, MSG_DELAY_TIME);
         } else {
-            mSurfaceView.setVisibility(View.VISIBLE);
+           // mSurfaceView.setVisibility(View.VISIBLE);
             mImageplayer.setPrepareListener(this);
         }
     }
@@ -519,7 +521,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         Log.i(TAG, "skipPicture-->mIndex:" + mIndex);
         mUri = mImageList.get(mIndex);
         mImageplayer.release();
-        mSurfaceView.setVisibility(View.GONE);
+       // mSurfaceView.setVisibility(View.GONE);
         Log.v(TAG, "mImageplayer release");
         showBmp();
     }
@@ -804,6 +806,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
     @Override
     public void playerr() {
+        if (paused) {return;}
         Log.d(TAG, "play error");
         mRootView.clearAnimation();
         mScale = SCALE_ORI;
@@ -820,16 +823,16 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
     @Override
     public void Prepared() {
+        if (paused) {return;}
         Log.d(TAG, "prepared");
         mUIHandler.removeMessages(NOT_DISPLAY);
-        runOnUiThread(() -> {
-            mLoadingProgress.setVisibility(View.VISIBLE);
-        });
         if (mDegress != DEFAULT_DEGREE) {
             mDegress = DEFAULT_DEGREE;
         }
         mRootView.clearAnimation();
-        restoreView(SCALE_ORI);
+       /* runOnUiThread(() -> {
+            restoreView(SCALE_ORI);
+        });*/
         mImageplayer.show();
         adjustViewSize(DEFAULT_DEGREE, SCALE_ORI);
     }
@@ -975,9 +978,10 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.d(TAG, "onDestroy()");
         unregisterReceiver(mUsbScanner);
         mUIHandler.removeCallbacksAndMessages(null);
+        Log.d(TAG, "onDestroy()");
+        android.os.Process.killProcess(android.os.Process.myPid());
     }
 
     /* (non-Javadoc)
@@ -1113,8 +1117,9 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         @Override
         public void surfaceCreated(SurfaceHolder holder) {
             if (mImageplayer != null) {
-                Log.d(TAG, "surfaceCreated setDisplay");
+                long time = System.currentTimeMillis();
                 mImageplayer.bindSurface(holder);
+                Log.d(TAG, "surfaceCreated setDisplay end"+(System.currentTimeMillis()-time));
             }
         }
 

@@ -88,10 +88,8 @@ public class ImagePlayer {
                 if (mBmpInfoHandler == null) {
                     return;
                 }
-                Log.d(TAG, "decodeRunnable" + mBmpInfoHandler);
                 boolean decodeOk = mBmpInfoHandler.decode();
                 boolean ready = (mReadyListener != null);
-                Log.d(TAG, "ready" + decodeOk + "x" + ready);
                 if (decodeOk && ready) {
                     mStatus = Status.PREAPRED;
                     mReadyListener.Prepared();
@@ -128,7 +126,9 @@ public class ImagePlayer {
                 ret = mBmpInfoHandler.setDataSrouce(mImageFilePath);
                 Log.d("setDataSource","setDataSource"+mImageFilePath+"@"+mBmpInfoHandler+"----"+ret);
                 if (!ret && mBmpInfoHandler instanceof GifBmpInfo) {
-                    mLastBmpInfo.release();
+                    if (mLastBmpInfo != null) {
+                        mLastBmpInfo.release();
+                    }
                     mBmpInfoHandler = BmpInfoFractory.getStaticBmpInfo();
                     mBmpInfoHandler.setImagePlayer(ImagePlayer.this);
                     ret = mBmpInfoHandler.setDataSrouce(mImageFilePath);
@@ -154,8 +154,8 @@ public class ImagePlayer {
     private Runnable ShowFrame = new Runnable() {
         @Override
         public void run() {
-            if (bindSurface) {
-                synchronized(lockObject) {
+            synchronized(lockObject) {
+                if (bindSurface) {
                     Log.d("ShowFrame","mBmpInfo"+mBmpInfoHandler+"**"+mBmpInfoHandler.mNativeBmpPtr);
                     if ((mBmpInfoHandler instanceof GifBmpInfo) &&
                             ((GifBmpInfo)mBmpInfoHandler).mFrameCount >0 &&
@@ -173,9 +173,9 @@ public class ImagePlayer {
                             mReadyListener.played();
                         }
                     }
+                } else {
+                    mWorkHandler.postDelayed(ShowFrame, 200);
                 }
-            } else {
-                mWorkHandler.postDelayed(ShowFrame, 200);
             }
         }
     };
@@ -207,7 +207,9 @@ public class ImagePlayer {
         Log.d(TAG, "setPrepared" + listener);
 
     }
-
+    public PrepareReadyListener getPrepareListener() {
+        return this.mReadyListener;
+    }
     public  boolean setDataSource(String filePath) {
         mImageFilePath = filePath;
         mWorkHandler.removeCallbacks(rotateWork);
@@ -354,8 +356,10 @@ public class ImagePlayer {
     }
 
     public void unbindSurface() {
-        bindSurface = false;
-        nativeUnbindSurface();
+        synchronized(lockObject) {
+            bindSurface = false;
+            nativeUnbindSurface();
+        }
     }
     private boolean checkVideoAxis() {
         SystemControlManager mSystemControlManager = SystemControlManager.getInstance();
@@ -417,19 +421,15 @@ public class ImagePlayer {
     }
 
     public int getBmpWidth() {
-        synchronized(lockObject) {
-            if (mBmpInfoHandler != null) {
-                return mBmpInfoHandler.getBmpWidth();
-            }
+        if (mBmpInfoHandler != null) {
+            return mBmpInfoHandler.getBmpWidth();
         }
         return 0;
     }
 
     public int getBmpHeight() {
-        synchronized(lockObject) {
-            if (mBmpInfoHandler != null)
-                return mBmpInfoHandler.getBmpHeight();
-        }
+        if (mBmpInfoHandler != null)
+            return mBmpInfoHandler.getBmpHeight();
         return 0;
 
     }

@@ -25,7 +25,7 @@ namespace android {
 
 class SharedMemoryProxy {
 public:
-    SharedMemoryProxy() {}
+    SharedMemoryProxy() {isInUse = false;}
 
     ~SharedMemoryProxy();
 
@@ -37,12 +37,18 @@ public:
     size_t getSize(){
         return mSize;
     }
+    void setUsed(bool use) {
+        isInUse = use;
+    }
+    bool getIsUsed() {
+        return isInUse;
+    }
     void releaseMem();
     uint8_t* getmem() {
         return mData;
     }
 private:
-
+    bool isInUse;
     int mAshmemFd;
     uint8_t* mData  = nullptr;
     size_t mSize = -1;

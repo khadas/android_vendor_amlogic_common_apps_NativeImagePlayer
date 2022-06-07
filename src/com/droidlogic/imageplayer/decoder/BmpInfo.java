@@ -56,15 +56,16 @@ public class BmpInfo {
     }
 
     public boolean decode() {
-        Log.d("TAG", "decode and ptr " + mDecoderPtr);
-
         if (mDecoderPtr > 0) {
             Log.d("TAG", "mImagePlayer" + mImagePlayer.getMxW() + "x" + mImagePlayer.getMxH());
             mTargetWidth = mImagePlayer.getMxW();
             mTargetHeight = mImagePlayer.getMxH();
             if (mBmpWidth > mTargetWidth || mBmpHeight > mTargetHeight) {
-                mBmpWidth = mTargetWidth;
-                mBmpHeight = mTargetHeight;
+                float scaleDown = 1.0f*mTargetWidth/mBmpWidth > 1.0f*mTargetHeight/mBmpHeight ?
+                                    1.0f*mTargetWidth/mBmpWidth : 1.0f*mTargetHeight/mBmpHeight;
+
+                mBmpWidth = (int)Math.ceil(mTargetWidth*scaleDown);
+                mBmpHeight = (int)Math.ceil(mTargetHeight*scaleDown);
             }else if (mBmpWidth < BmpInfoFractory.BMP_SMALL_W && mBmpHeight < BmpInfoFractory.BMP_SMALL_H) {
                 mTargetWidth = mBmpWidth;
                 mTargetHeight = mBmpHeight;
@@ -79,6 +80,9 @@ public class BmpInfo {
 
     public void release() {
         nativeRelease(mDecoderPtr);
+        mBmpWidth = 0;
+        mBmpHeight = 0;
+        mSampleSize = 1;
     }
 
     public int getBmpWidth() {

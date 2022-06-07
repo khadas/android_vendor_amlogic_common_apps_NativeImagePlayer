@@ -34,6 +34,7 @@ int mOsdHeight = 0;
 int mLastWidth = 0;
 int mLastHeight = 0;
 int mLastTransform = 0;
+static bool isShown;
 SharedMemoryProxy mMemory;
 static jfieldID mImagePlayer_ScreenWidth;
 static jfieldID mImagePlayer_ScreenHeight;
@@ -165,10 +166,12 @@ void bindSurface(JNIEnv *env, jobject imageobj, jobject jsurface){
         imageplayer = new ImageOperator(env);
         imageplayer->setSurfaceSize(mFrameWidth,mFrameHeight);
         native_window_set_buffer_count(mNativeWindow.get(),4);
+        isShown = true;
     }
 }
 void unbindSurface(){
     ALOGE("unbindSurface");
+    isShown = false;
     mRotate = 0;
     mFrameWidth = 0;
     mFrameHeight = 0;
@@ -177,9 +180,13 @@ void unbindSurface(){
     mLastWidth = 0;
     mLastHeight = 0;
     mLastTransform = 0;
-    mMemory.releaseMem();
+    mLastTransform = 0;
+    imageplayer->stopShown();
+    if (!mMemory.getIsUsed()) {
+        mMemory.releaseMem();
+    }
     if (mNativeWindow != NULL) {
-      //  CHECK_EQ(OK,native_window_api_disconnect(mNativeWindow.get(), NATIVE_WINDOW_API_EGL));
+       // CHECK_EQ(OK,native_window_api_disconnect(mNativeWindow.get(), NATIVE_WINDOW_API_EGL));
     }
 }
 static int rotate(JNIEnv *env, jclass clz,jint rotation, jboolean redraw) {
@@ -214,7 +221,7 @@ static int reRender(int32_t width, int32_t height, void *data, size_t inLen, SkC
     //status_t res =  mNativeWindow->dequeueBuffer(mNativeWindow.get(),&buf,&fenceFd);
     status_t res =  native_window_dequeue_buffer_and_wait(mNativeWindow.get(),&buf);
     if (res != OK) {
-        ALOGE("%s: Dequeue buffer failed: %s (%d)", __FUNCTION__, strerror(-res), res);
+        ALOGE("%s:reRender Dequeue buffer failed: %s (%d)", __FUNCTION__, strerror(-res), res);
         switch (res) {
             case NO_INIT:
                 jniThrowException(jnienv, "java/lang/IllegalStateException",
@@ -240,7 +247,9 @@ static int reRender(int32_t width, int32_t height, void *data, size_t inLen, SkC
     }
     if (mMemory.getSize() > 0) {
         ALOGE("recopy %d %d %d",mMemory.getSize(),buf->height, buf->stride);
+        mMemory.setUsed(true);
         memcpy(img,mMemory.getmem(),mMemory.getSize());
+        mMemory.setUsed(false);
     }else{
         memset(img, 128, buf->height * buf->stride*3/2);
        // memset(img, 0 , buf->stride *  buf->height);
@@ -254,7 +263,9 @@ static int reRender(int32_t width, int32_t height, void *data, size_t inLen, SkC
         imageplayer->rgbToYuv420(pixelBuffer, width, height, yPlane,
                         uPlane, vPlane, chromaStep, yStride, chromaStride, colorType);
         if (!mMemory.allocmem(buf->height * buf->stride*3/2)) {
+            mMemory.setUsed(true);
             memcpy(mMemory.getmem(),img,buf->height * buf->stride*3/2);
+            mMemory.setUsed(false);
         }
     }
     mapper.unlock(buf->handle);
@@ -268,26 +279,18 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen, SkCol
     int ret = 0;
     int frame_width = ((width + 1) & ~1);
     int frame_height =((height + 1) & ~1);
-    ALOGE("render for frame size (%d x %d)-->(%d x %d)",ret,height,frame_width,frame_height);
+    ALOGE("render for frame size (%d x %d)-->(%d x %d)",width,height,frame_width,frame_height);
     ANativeWindowBuffer *buf;
     native_window_set_buffers_dimensions(mNativeWindow.get(), frame_width, frame_height);
     //status_t res =  mNativeWindow->dequeueBuffer(mNativeWindow.get(),&buf,&fenceFd);
      status_t res =  native_window_dequeue_buffer_and_wait(mNativeWindow.get(),&buf);
     if (res != OK) {
         ALOGE("%s: Dequeue buffer failed: %s (%d)", __FUNCTION__, strerror(-res), res);
-        switch (res) {
-            case NO_INIT:
-                jniThrowException(jnienv, "java/lang/IllegalStateException",
-                    "Surface has been abandoned");
-                break;
-            default:
-                jniThrowRuntimeException(jnienv, "dequeue buffer failed");
-        }
         return ret;
     }
     ALOGE("***************************");
     am_gralloc_set_uvm_buf_usage(buf->handle, 1);
-    ALOGE("-->buf %d %d  %d %d %d",buf->format,buf->stride,buf->width, buf->height, fenceFd);
+    ALOGE("renderbuf %d %d  %d %d %d",buf->format,buf->stride,buf->width, buf->height, fenceFd);
     Rect bounds(frame_width,frame_height);
     uint8_t* img = NULL;
     err =  mapper.lock(buf->handle,GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_NEVER,bounds,(void**)(&img));
@@ -297,6 +300,7 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen, SkCol
                 strerror(-ret), ret);
         return ret;
     }
+    if (img == NULL) return -1;
     memset(img, 128, buf->height * buf->stride*3/2);
     uint8_t* yPlane = img;
     uint8_t* uPlane = img + buf->stride*buf->height;
@@ -305,11 +309,16 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen, SkCol
     size_t yStride = buf->stride;
     size_t chromaStride =  buf->stride;
     uint8_t* pixelBuffer = (uint8_t*)data;
+    if (!isShown) return -1;
     imageplayer->rgbToYuv420(pixelBuffer, width, height, yPlane,
                     uPlane, vPlane, chromaStep, yStride, chromaStride, colorType);
     mMemory.releaseMem();
-    if (!mMemory.allocmem(buf->height * buf->stride*3/2)) {
+    if (isShown && !mMemory.allocmem(buf->height * buf->stride*3/2)) {
+        ALOGE("before memcpy");
+        mMemory.setUsed(true);
         memcpy(mMemory.getmem(),img,buf->height * buf->stride*3/2);
+        mMemory.setUsed(false);
+        ALOGE("end memcpy");
     }
     mapper.unlock(buf->handle);
 

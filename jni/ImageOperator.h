@@ -91,13 +91,14 @@ class ImageOperator{
         int convertARGB8888toYUYV(void *dst, const SkBitmap *src);
         int convertRGB565toYUYV(void *dst, const SkBitmap *src);
         int convertIndex8toYUYV(void *dst, const SkBitmap *src);
-
+        void stopShown();
         void rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, uint8_t* yPlane,
         uint8_t* crPlane, uint8_t* cbPlane, size_t chromaStep, size_t yStride, size_t chromaStride, SkColorType colorType);
         int show(void* addr);
     private:
         int renderAndShow(SkBitmap *bmp, void* addr);
         ~ImageOperator();
+        bool isShown;
         ImageBitmap mbitmap;
         ScreenSize mscreen;
         JNIEnv *mEnv;
