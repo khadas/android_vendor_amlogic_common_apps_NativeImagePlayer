@@ -17,8 +17,6 @@ import android.util.Log;
 public class BmpInfo {
     int mBmpWidth;
     int mBmpHeight;
-    int mTargetWidth;
-    int mTargetHeight;
     float mSampleSize;
     String filePath;
     ImagePlayer mImagePlayer;
@@ -39,11 +37,11 @@ public class BmpInfo {
         }
         try {
             mDecoderPtr = 0;
-            FileInputStream stream = new FileInputStream(file);
+            /*FileInputStream stream = new FileInputStream(file);
             FileDescriptor fd = stream.getFD();
 
-            Os.lseek(fd, 0, SEEK_CUR);
-            mDecoderPtr = nativeSetDataSource(fd);
+            Os.lseek(fd, 0, SEEK_CUR);*/
+            mDecoderPtr = nativeSetDataSource(filePath);
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -57,20 +55,27 @@ public class BmpInfo {
 
     public boolean decode() {
         if (mDecoderPtr > 0) {
-            Log.d("TAG", "mImagePlayer" + mImagePlayer.getMxW() + "x" + mImagePlayer.getMxH());
-            mTargetWidth = mImagePlayer.getMxW();
-            mTargetHeight = mImagePlayer.getMxH();
-            if (mBmpWidth > mTargetWidth || mBmpHeight > mTargetHeight) {
-                float scaleDown = 1.0f*mTargetWidth/mBmpWidth > 1.0f*mTargetHeight/mBmpHeight ?
-                                    1.0f*mTargetWidth/mBmpWidth : 1.0f*mTargetHeight/mBmpHeight;
+            int tempWidth = mImagePlayer.getMxW();
+            int tempHeight = mImagePlayer.getMxH();
+            Log.d("TAG", "mBmpWidth" + mBmpWidth + "mTargetWidth" + tempWidth+"-"+mBmpHeight+":"+tempHeight);
 
-                mBmpWidth = (int)Math.ceil(mTargetWidth*scaleDown);
-                mBmpHeight = (int)Math.ceil(mTargetHeight*scaleDown);
-            }else if (mBmpWidth < BmpInfoFractory.BMP_SMALL_W && mBmpHeight < BmpInfoFractory.BMP_SMALL_H) {
-                mTargetWidth = mBmpWidth;
-                mTargetHeight = mBmpHeight;
+            if (mBmpWidth > mImagePlayer.getMxW() || mBmpHeight > mImagePlayer.getMxH()) {
+                double scaleSize = 1.0f* mBmpWidth/mImagePlayer.getMxW() > 1.0f* mBmpHeight/mImagePlayer.getMxH() ?
+                            1.0f* mBmpWidth/mImagePlayer.getMxW() : 1.0f* mBmpHeight/mImagePlayer.getMxH();
+                mSampleSize =(int)Math.round(scaleSize);
+                 Log.d("TAG", "mBmpWidth"+scaleSize+"mSampleSize"+mSampleSize);
+                if (mSampleSize > 1) {
+                    tempWidth = (int)(mBmpWidth/mSampleSize);
+                    tempHeight = (int)(mBmpHeight/mSampleSize);
+                }
+            }else {
+                tempWidth = mBmpWidth;
+                tempHeight = mBmpHeight;
             }
-            return decodeInner(mDecoderPtr, mTargetWidth, mTargetHeight);
+            mBmpWidth = tempWidth;
+            mBmpHeight= tempHeight;
+            Log.d("TAG", "mImagePlayer" + tempWidth + "x" + tempHeight);
+            return decodeInner(mDecoderPtr, tempWidth, tempHeight);
         } else return false;
     }
 
@@ -99,14 +104,12 @@ public class BmpInfo {
 
     private native void nativeRelease(long decoder);
 
-    private native long nativeSetDataSource(FileDescriptor file);
+    private native long nativeSetDataSource(String file);
     @Override
     public String toString() {
         return "BmpInfo{" +
                 "mBmpWidth=" + mBmpWidth +
                 ", mBmpHeight=" + mBmpHeight +
-                ", mTargetWidth=" + mTargetWidth +
-                ", mTargetHeight=" + mTargetHeight +
                 ", mSampleSize=" + mSampleSize +
                 ", filePath='" + filePath + '\'' +
                 ", mNativeBmpPtr=" + mNativeBmpPtr +

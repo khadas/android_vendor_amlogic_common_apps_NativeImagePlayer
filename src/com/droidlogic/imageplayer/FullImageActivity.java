@@ -69,7 +69,7 @@ import android.view.animation.AlphaAnimation;
 import android.view.animation.ScaleAnimation;
 
 import androidx.core.app.ActivityCompat;
-
+import com.droidlogic.imageplayer.decoder.BmpInfoFractory;
 import com.droidlogic.imageplayer.decoder.ImagePlayer;
 
 
@@ -279,9 +279,9 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             if ((degree / ROTATION_DEGREE) % 2 != 0) {
                 srcW = mImageplayer.getBmpHeight();
                 srcH = mImageplayer.getBmpWidth();
-                if (srcW > mImageplayer.getMxW() || srcH > mImageplayer.getMxH()) {
-                    float scaleDown = 1.0f * mImageplayer.getMxW() / srcW < 1.0f * mImageplayer.getMxH() / srcH ?
-                            1.0f * mImageplayer.getMxW() / srcW : 1.0f * mImageplayer.getMxH() / srcH;
+                if (srcW > mOsdWidth || srcH > mOsdHeight) {
+                    float scaleDown = 1.0f * mOsdWidth / srcW < 1.0f * mOsdHeight / srcH ?
+                            1.0f * mOsdWidth / srcW : 1.0f * mOsdHeight / srcH;
                     srcW = (int) Math.ceil(scaleDown * srcW);
                     srcH = (int) Math.ceil(scaleDown * srcH);
                 }
@@ -290,13 +290,26 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
                 srcW *= scale;
                 srcH *= scale;
             }
-            srcW = srcW > mImageplayer.getMxW() ? mImageplayer.getMxW() : srcW;
-            srcH = srcH > mImageplayer.getMxH() ? mImageplayer.getMxH() : srcH;
+            Log.d(TAG, "show setFixedSize" + srcW + "x" + srcH);
+           // if (scale == SCALE_ORI && srcW < mOsdWidth
+            //    && srcH<mOsdHeight && mImageplayer.getBmpSample() > 1) {
+           if (srcW > BmpInfoFractory.BMP_SMALL_W || srcH>BmpInfoFractory.BMP_SMALL_H) {
+                float scaleUp = 1.0f * mOsdWidth /srcW < 1.0f * mOsdHeight /srcH?
+                         1.0f * mOsdWidth /srcW : 1.0f * mOsdHeight /srcH;
+                srcH = (int) Math.ceil(scaleUp*srcH);
+                srcW = (int) Math.ceil(scaleUp*srcW);
+            }else {
+                srcW = srcW > mOsdWidth ? mOsdWidth : srcW;
+                srcH = srcH > mOsdHeight ? mOsdHeight : srcH;
+            }
             Log.d(TAG, "show setFixedSize" + srcW + "x" + srcH);
             int frameWidth = ((srcW + 1) & ~1);
             int frameHeight = ((srcH + 1) & ~1);
-            Log.d(TAG, "show setFixedSize after scale to surface" + frameWidth + "x" + frameHeight);
+            Log.d(TAG, "--show setFixedSize after scale to surface" + frameWidth + "x" + frameHeight);
+            mSurfaceView.setLeft((mImageplayer.getMxW()-frameWidth)/2);
+            mSurfaceView.setTop((mImageplayer.getMxH()-frameHeight)/2);
             mSurfaceView.getHolder().setFixedSize(frameWidth, frameHeight);
+            Log.d(TAG, "--show setFixedSize after scale to surface" + mSurfaceView.getLeft() + "x" + mSurfaceView.getTop());
         });
     }
 

@@ -24,6 +24,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.HandlerThread;
+import android.os.Process;
 import android.view.Surface;
 import android.media.Image;
 import android.net.Uri;
@@ -60,7 +61,7 @@ public class ImagePlayer {
     private int mTransformTStep;
     private int mTransformBStep;
     private PrepareReadyListener mReadyListener;
-    private HandlerThread mWorkThread = new HandlerThread("worker");
+    private HandlerThread mWorkThread = new HandlerThread("worker",Process.THREAD_PRIORITY_VIDEO);
     private Handler mWorkHandler;
     private Status mStatus = Status.IDLE;
     private String mImageFilePath;
@@ -88,7 +89,9 @@ public class ImagePlayer {
                 if (mBmpInfoHandler == null) {
                     return;
                 }
+                long time  = System.currentTimeMillis();
                 boolean decodeOk = mBmpInfoHandler.decode();
+                android.util.Log.d(TAG,"cost time "+(System.currentTimeMillis()-time));
                 boolean ready = (mReadyListener != null);
                 if (decodeOk && ready) {
                     mStatus = Status.PREAPRED;

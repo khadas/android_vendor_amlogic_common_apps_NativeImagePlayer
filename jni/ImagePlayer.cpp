@@ -314,11 +314,9 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen, SkCol
                     uPlane, vPlane, chromaStep, yStride, chromaStride, colorType);
     mMemory.releaseMem();
     if (isShown && !mMemory.allocmem(buf->height * buf->stride*3/2)) {
-        ALOGE("before memcpy");
         mMemory.setUsed(true);
         memcpy(mMemory.getmem(),img,buf->height * buf->stride*3/2);
         mMemory.setUsed(false);
-        ALOGE("end memcpy");
     }
     mapper.unlock(buf->handle);
 

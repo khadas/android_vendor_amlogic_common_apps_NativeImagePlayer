@@ -83,8 +83,6 @@ public class GifBmpInfo extends BmpInfo {
         return "GifBmpInfo{" +
                 "mBmpWidth=" + mBmpWidth +
                 ", mBmpHeight=" + mBmpHeight +
-                ", mTargetWidth=" + mTargetWidth +
-                ", mTargetHeight=" + mTargetHeight +
                 ", mSampleSize=" + mSampleSize +
                 ", filePath='" + filePath + '\'' +
                 ", mNativeBmpPtr=" + mNativeBmpPtr +
