@@ -166,7 +166,7 @@ bool decodeInner(JNIEnv *env, jobject obj1, jlong nativePtr, jint targetWidth, j
 
     ALOGI("original bmpinfo %d %d %d %d\n",imageInfo.isOpaque(), imageInfo.width(), imageInfo.height(),
           SkCodec::kIncompleteInput);
-    int samplesize = 1;
+    int sampleSize = 1;
     SkEncodedOrigin o = codec->codec()->getOrigin();
     int imageWidth = imageInfo.width();
     int imageHeight = imageInfo.height();
@@ -179,40 +179,35 @@ bool decodeInner(JNIEnv *env, jobject obj1, jlong nativePtr, jint targetWidth, j
         targetWidth = targetHeight;
         targetHeight = temVal;
     }*/
-    ALOGI("----imageWidth %d x%d",imageWidth,imageHeight);
     if (imageWidth > SURFACE_4K_WIDTH || imageHeight > SURFACE_4K_HEIGHT) {
         float scaleVal = 1.0f*imageWidth/SURFACE_4K_WIDTH > 1.0f*imageHeight/SURFACE_4K_HEIGHT ?
                             1.0f*imageWidth/SURFACE_4K_WIDTH : 1.0f*imageHeight/SURFACE_4K_HEIGHT;
-        samplesize = round(scaleVal);
+        sampleSize = round(scaleVal);
+    }else if (imageWidth > targetWidth && imageWidth/targetWidth == imageHeight/targetHeight) {
+        sampleSize = round(SURFACE_4K_WIDTH/targetWidth);
     }
     SkColorType colorType = kN32_SkColorType;
-    if (imageInfo.colorType() == kGray_8_SkColorType) {
-        colorType  = kGray_8_SkColorType;
+    if (imageInfo.colorType() == kGray_8_SkColorType || imageInfo.colorType() == kAlpha_8_SkColorType) {
+        colorType  = imageInfo.colorType();
+    }else if (colorType == kRGBA_F16_SkColorType) {
+        colorType = kN32_SkColorType;
     } else {
         colorType = codec->computeOutputColorType(colorType);
     }
-    SkISize scaledDims = codec->getSampledDimensions(samplesize);
-    ALOGI("scale down origin picture %d %d %d-->%d %d\n",samplesize,scaledDims.width(),
+    SkISize scaledDims = codec->getSampledDimensions(sampleSize);
+    ALOGI("scale down origin picture %d %d %d-->%d %d\n",sampleSize,scaledDims.width(),
                 scaledDims.height(),targetWidth,targetHeight);
     int scaleWidth = scaledDims.width();
     int scaleHeight = scaledDims.height();
 
-    ALOGI("scale down origin picture %d %d\n",scaleWidth, scaleHeight);
     bool retry = false;
     SkBitmap bmp;
-    SkImageInfo scaledInfo = imageInfo.makeWH(scaleWidth, scaleHeight);
-         //   .makeColorType(kN32_SkColorType);
-    if (colorType == kRGBA_F16_SkColorType) {
-         scaledInfo.makeColorType(kN32_SkColorType);
-    }else if(colorType == kAlpha_8_SkColorType) {
-        scaledInfo.makeColorType(kAlpha_8_SkColorType);
-    }else {
-         scaledInfo = scaledInfo.makeColorType(colorType).makeColorSpace(nullptr);
-    }
+    SkImageInfo scaledInfo = imageInfo.makeWH(scaleWidth, scaleHeight)
+            .makeColorType(colorType);
     SkAndroidCodec::AndroidOptions options;
-    options.fSampleSize = samplesize;
+    options.fSampleSize = sampleSize;
     bmp.setInfo(scaledInfo);
-    sk_sp<Bitmap> nativeBitmap = Bitmap::allocateAshmemBitmap(&bmp);
+    sk_sp<VBitmap> nativeBitmap = VBitmap::allocateAshmemBitmap(&bmp);
     if (!nativeBitmap) {
         SkString msg;
         msg.printf("OOM allocating Bitmap with dimensions %i x %i",
@@ -242,7 +237,6 @@ bool decodeInner(JNIEnv *env, jobject obj1, jlong nativePtr, jint targetWidth, j
     }while(retry);
     jclass bmpinfo = FindClassOrDie(env,"com/droidlogic/imageplayer/decoder/BmpInfo");
     bmphandler = GetFieldIDOrDie(env,bmpinfo,"mNativeBmpPtr","J");
-    ALOGE("target size %dx%d",targetWidth,targetHeight);
     if (targetWidth != scaleWidth && targetHeight != scaleHeight) {
         ALOGD("cover height and width %dx%d->%dx%d",scaleWidth,scaleHeight,targetWidth,targetHeight);
         SkBitmap devBitmap;
@@ -250,7 +244,7 @@ bool decodeInner(JNIEnv *env, jobject obj1, jlong nativePtr, jint targetWidth, j
                                                  colorType, bmp.alphaType());
 
         devBitmap.setInfo(devinfo);
-        sk_sp<Bitmap> devNativeBitmap = Bitmap::allocateAshmemBitmap(&devBitmap);
+        sk_sp<VBitmap> devNativeBitmap = VBitmap::allocateAshmemBitmap(&devBitmap);
         SkRect srcRect = SkRect::MakeLTRB(0,0,scaleWidth, scaleHeight);
         SkRect destRect = SkRect::MakeLTRB(0,0,targetWidth, targetHeight);
         SkCanvas *canvas =  new SkCanvas(devBitmap);
@@ -281,13 +275,6 @@ void nativeRelease(JNIEnv *env, jobject obj1,jlong nativePtr){
         auto ptr= reinterpret_cast<VBitmap*>(bmp);
         env->SetLongField(obj1,bmphandler,0);
         delete ptr;
-    }
-    if (nativePtr != 0) {
-        auto* decoder = reinterpret_cast<ImageDecoder*>(nativePtr);
-        if (decoder != nullptr) {
-            delete decoder;
-            decoder = nullptr;
-        }
     }
 }
 

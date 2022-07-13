@@ -365,7 +365,7 @@ void ImageOperator::rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, ui
         bool jEven = (j & 1) == 0;
         for (size_t i = 0; i < width; i++) {
             if (!isShown) return;
-            if (colorType == kAlpha_8_SkColorType) {
+            if (colorType == kAlpha_8_SkColorType || colorType == kGray_8_SkColorType) {
                 uint8_t gray = rgbBuf[index++];
                 R = gray;
                 G = gray;

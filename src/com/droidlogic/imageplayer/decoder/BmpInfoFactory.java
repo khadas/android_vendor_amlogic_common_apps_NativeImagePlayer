@@ -5,7 +5,7 @@ import android.webkit.MimeTypeMap;
 
 import java.io.File;
 
-public class BmpInfoFractory {
+public class BmpInfoFactory {
     public static final String TYPE_GIF = "gif";
     public static final String TYPE_APP = "application";
     public static final int BMP_SMALL_W = 1280;
@@ -17,7 +17,7 @@ public class BmpInfoFractory {
             return null;
         } else if (mimeType.contains(TYPE_GIF)) {
             GifBmpInfo info = new GifBmpInfo();
-            if (!info.setDataSrouce(filePath)) {
+            if (!info.setDataSource(filePath)) {
                 info.release();
                 return new BmpInfo();
             }

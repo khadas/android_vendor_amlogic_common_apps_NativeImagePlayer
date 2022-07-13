@@ -22,6 +22,7 @@ import android.graphics.Rect;
 import android.os.Handler;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Point;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.HandlerThread;
 import android.os.Process;
@@ -30,19 +31,19 @@ import android.media.Image;
 import android.net.Uri;
 import android.os.RemoteException;
 import android.util.Size;
+import android.view.SurfaceControl;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.util.Log;
-
 import com.droidlogic.app.SystemControlManager;
 import java.io.File;
 import java.lang.reflect.Field;
-
+import java.lang.reflect.Method;
 public class ImagePlayer {
     public static final String TAG = "ImagePlayer";
     public static int STEP = 100;
     private static final String AXIS = "/sys/class/video/device_resolution";
-
+    private static final int ROTATION_DEGREE = 90;
     private static ImagePlayer mImagePlayerInstance;
 
     static {
@@ -56,25 +57,26 @@ public class ImagePlayer {
     private int mScreenWidth;
     private int mSurfaceHeight;
     private int mSurfaceWidth;
-    private int mTransformLStep;
-    private int mTransformRStep;
-    private int mTransformTStep;
-    private int mTransformBStep;
     private PrepareReadyListener mReadyListener;
     private HandlerThread mWorkThread = new HandlerThread("worker",Process.THREAD_PRIORITY_VIDEO);
     private Handler mWorkHandler;
     private Status mStatus = Status.IDLE;
     private String mImageFilePath;
     private int mDegree;
+    private int mBufferWidth;
+    private int mBufferHeight;
+    private SurfaceView mSurfaceView;
     private boolean mredraw;
     private float mSx;
     private float mSy;
+    private final int mOsdWidth = getProperties("ro.surface_flinger.max_graphics_width", 1920);
+    private final int mOsdHeight = getProperties("ro.surface_flinger.max_graphics_height", 1080);
     private Runnable preparedDelay = new Runnable() {
         @Override
         public void run() {
             boolean ready = (mReadyListener != null);
             if (ready) {
-                mStatus = Status.PREAPRED;
+                mStatus = Status.PREPARED;
                 mReadyListener.Prepared();
             } else {
                 mWorkHandler.postDelayed(preparedDelay, 200);
@@ -91,10 +93,9 @@ public class ImagePlayer {
                 }
                 long time  = System.currentTimeMillis();
                 boolean decodeOk = mBmpInfoHandler.decode();
-                android.util.Log.d(TAG,"cost time "+(System.currentTimeMillis()-time));
                 boolean ready = (mReadyListener != null);
                 if (decodeOk && ready) {
-                    mStatus = Status.PREAPRED;
+                    mStatus = Status.PREPARED;
                     mReadyListener.Prepared();
                 } else if (decodeOk) {
                     mWorkHandler.postDelayed(preparedDelay, 200);
@@ -124,17 +125,17 @@ public class ImagePlayer {
         public void run() {
             boolean ret = true;
             synchronized (lockObject) {
-                mBmpInfoHandler = BmpInfoFractory.getBmpInfo(mImageFilePath);
+                mBmpInfoHandler = BmpInfoFactory.getBmpInfo(mImageFilePath);
                 mBmpInfoHandler.setImagePlayer(ImagePlayer.this);
-                ret = mBmpInfoHandler.setDataSrouce(mImageFilePath);
+                ret = mBmpInfoHandler.setDataSource(mImageFilePath);
                 Log.d("setDataSource","setDataSource"+mImageFilePath+"@"+mBmpInfoHandler+"----"+ret);
                 if (!ret && mBmpInfoHandler instanceof GifBmpInfo) {
                     if (mLastBmpInfo != null) {
                         mLastBmpInfo.release();
                     }
-                    mBmpInfoHandler = BmpInfoFractory.getStaticBmpInfo();
+                    mBmpInfoHandler = BmpInfoFactory.getStaticBmpInfo();
                     mBmpInfoHandler.setImagePlayer(ImagePlayer.this);
-                    ret = mBmpInfoHandler.setDataSrouce(mImageFilePath);
+                    ret = mBmpInfoHandler.setDataSource(mImageFilePath);
                     mLastBmpInfo = mBmpInfoHandler;
                 }
             }
@@ -159,7 +160,10 @@ public class ImagePlayer {
         public void run() {
             synchronized(lockObject) {
                 if (bindSurface) {
-                    Log.d("ShowFrame","mBmpInfo"+mBmpInfoHandler+"**"+mBmpInfoHandler.mNativeBmpPtr);
+                    if (mStatus != Status.PREPARED) {
+                        return;
+                    }
+                    Log.d("ShowFrame","mBmpInfo"+mBmpInfoHandler+"**"+mBmpInfoHandler.mNativeBmpPtr+"mStatus"+mStatus);
                     if ((mBmpInfoHandler instanceof GifBmpInfo) &&
                             ((GifBmpInfo)mBmpInfoHandler).mFrameCount >0 &&
                             (mBmpInfoHandler.renderFrame())) {
@@ -227,18 +231,67 @@ public class ImagePlayer {
         bindSurface(holder.getSurface());
         bindSurface = true;
     }
-
+    private Point getInitialFrameSize() {
+        int srcW = getBmpWidth();
+        int srcH = getBmpHeight();
+        Log.d("TAG","getInitalFrameSize"+srcW+"x"+srcH+" - "+mDegree);
+        if ((mDegree / ROTATION_DEGREE) % 2 != 0) {
+            srcW = getBmpHeight();
+            srcH = getBmpWidth();
+            if (srcW > mOsdWidth || srcH > mOsdHeight) {
+                float scaleDown = 1.0f * mOsdWidth / srcW < 1.0f * mOsdHeight / srcH ?
+                        1.0f * mOsdWidth / srcW : 1.0f * mOsdHeight / srcH;
+                srcW = (int) Math.ceil(scaleDown * srcW);
+                srcH = (int) Math.ceil(scaleDown * srcH);
+            }
+        }
+       if (srcW > BmpInfoFactory.BMP_SMALL_W || srcH > BmpInfoFactory.BMP_SMALL_H ||isNeedFullScreen()) {
+            float scaleUp = 1.0f * mOsdWidth /srcW < 1.0f * mOsdHeight /srcH?
+                     1.0f * mOsdWidth /srcW : 1.0f * mOsdHeight /srcH;
+            srcH = (int) Math.ceil(scaleUp*srcH);
+            srcW = (int) Math.ceil(scaleUp*srcW);
+        }else {
+            srcW = srcW > mOsdWidth ? mOsdWidth : srcW;
+            srcH = srcH > mOsdHeight ? mOsdHeight : srcH;
+        }
+        int frameWidth = ((srcW + 1) & ~1);
+        int frameHeight = ((srcH + 1) & ~1);
+        return new Point(frameWidth,frameHeight);
+    }
+    private boolean isNeedFullScreen() {
+        int srcW = getBmpWidth();
+        int srcH = getBmpHeight();
+        if (srcW > BmpInfoFactory.BMP_SMALL_W || srcH > BmpInfoFactory.BMP_SMALL_H) {
+             return true;
+         }
+         return false;
+    }
     public boolean show() {
-        Log.d("TAG", "show() mStatus:" + mStatus);
-        if (mStatus != Status.PREAPRED) {
+        if (mStatus != Status.PREPARED) {
             return false;
         }
-        mTransformLStep = 0;
-        mTransformRStep = 0;
-        mTransformTStep = 0;
-        mTransformBStep = 0;
         mWorkHandler.post(ShowFrame);
+        Point p = getInitialFrameSize();
+        mSurfaceWidth = p.x;
+        mSurfaceHeight = p.y;
+        setPaintSize(1,1);
         return true;
+    }
+    public void setDisplay(SurfaceView surfaceview) {
+        mSurfaceView = surfaceview;
+        bindSurface(surfaceview.getHolder());
+    }
+    private void setPaintSize(float sx,float sy) {
+        int frameWidth = (int)(mSurfaceWidth*sx);
+        int frameHeight = (int)(mSurfaceHeight*sy);
+        int top = (mOsdHeight - frameHeight)/2;
+        int left = (mOsdWidth - frameWidth)/2;
+        Log.d("TAG","setPaintSize"+left+"-"+top+"-"+(left+frameWidth)+"-"+(top+frameHeight));
+        SurfaceControl sc = mSurfaceView.getSurfaceControl();
+        new SurfaceControl.Transaction().setVisibility(sc, true)
+                        .setGeometry(sc, null, new Rect(left, top, left+frameWidth, top+frameHeight), Surface.ROTATION_0)
+                        .setBufferSize(sc,frameWidth,frameHeight)
+                        .apply();
     }
     private Runnable rotateWork = new Runnable() {
          @Override
@@ -259,71 +312,67 @@ public class ImagePlayer {
         mDegree = degrees;
         mredraw = redraw;
         mWorkHandler.post(rotateWork);
-        mTransformLStep = 0;
-        mTransformRStep = 0;
-        mTransformTStep = 0;
-        mTransformBStep = 0;
+        Point p = getInitialFrameSize();
+        mSurfaceWidth = p.x;
+        mSurfaceHeight = p.y;
+        setPaintSize(1,1);
         return 0;
     }
 
     public int setScale(float sx, float sy) {
-        boolean redraw = true;
+       /* boolean redraw = true;
         synchronized(lockObject) {
             if (mBmpInfoHandler instanceof GifBmpInfo) {
                 redraw = false;
             }
             nativeScale(sx, sy, redraw);
-        }
-        mTransformLStep = 0;
-        mTransformRStep = 0;
-        mTransformTStep = 0;
-        mTransformBStep = 0;
+        }*/
+        setPaintSize(sx,sy);
         return 0;
     }
 
-    public int setTranslate(int degree, float sx, float sy, int direction) {
+    public int setTranslate(int xpos,int ypos, float scale) {
         mWorkHandler.removeCallbacks(ShowFrame);
-        int[] axis = new int[4];
-        int trans = (degree / 90);
-        Log.d(TAG, "beform tranform" + direction + " degree:" + trans + " {" + mTransformTStep + "," + mTransformBStep
-                + "," + mTransformLStep + "," + mTransformBStep);
-        direction = (direction + trans) % 4;
-        switch (direction) {
-            case 0:
-                axis[0] = -1;
-                axis[1] = -1;
-                axis[2] = 0;
-                axis[3] = 0;
-                break;
-            case 1:/*left*/
-                axis[0] = 0;
-                axis[1] = 0;
-                axis[2] = -1;
-                axis[3] = -1;
-                break;
-            case 2:/*bottom*/
-                axis[0] = 1;
-                axis[1] = 1;
-                axis[2] = 0;
-                axis[3] = 0;
-                break;
-            case 3:
-                axis[0] = 0;
-                axis[1] = 0;
-                axis[2] = 1;
-                axis[3] = 1;
-                break;
+        int frameWidth = (int)(mSurfaceWidth*scale);
+        int frameHeight = (int)(mSurfaceHeight*scale);
+        int top = (mOsdHeight - frameHeight)/2;
+        int left = (mOsdWidth - frameWidth)/2;
+        Log.d("TAG","setTranslate("+xpos+" "+ypos+")top "+top+" left "+left+" scale "+scale);
+        if (left > 0) {
+            xpos = 0;
         }
-        synchronized(lockObject) {
-            Log.d(TAG, "tranform" + direction + ":" + axis[0] + ":" + axis[1] + ":" + axis[2] + ":" + axis[3]);
-            if (nativeTransform(degree, sx, sy, mTransformTStep + axis[0], mTransformBStep + axis[1],
-                    mTransformLStep + axis[2], mTransformRStep + axis[3], STEP) == 0) {
-                mTransformTStep += axis[0];
-                mTransformBStep += axis[1];
-                mTransformLStep += axis[2];
-                mTransformRStep += axis[3];
+        if (top > 0) {
+            ypos = 0;
+        }
+        if (xpos == 0 && ypos == 0) return -1;
+        int step = (int)((scale*10-10)/2);
+        int xStep = Math.abs(left/step);
+        int yStep = Math.abs(top/step);
+        Log.d("TAG","step"+step+" "+xStep+ "yStep"+yStep);
+        top -= ypos*yStep;
+        left -= xpos*xStep;
+        Log.d("TAG","top"+top+"left"+left+"step"+step);
+        if (Math.abs(xpos) == step || Math.abs(ypos) == step) {
+            if (xpos == -step) {
+                left = 0;
+            }
+            if (ypos == -step) {
+                top = 0;
+            }
+            if (xpos == step) {
+                left = (mOsdWidth - frameWidth);
+            }
+            if (ypos == step) {
+                top = (mOsdHeight - frameHeight);
             }
         }
+
+        Log.d("TAG","setPaintSize("+left+" "+top+" "+(left+frameWidth)+" "+(top+frameHeight)+")");
+        SurfaceControl sc = mSurfaceView.getSurfaceControl();
+        new SurfaceControl.Transaction().setVisibility(sc, true)
+                        .setGeometry(sc, null, new Rect(left, top, left+frameWidth, top+frameHeight), Surface.ROTATION_0)
+                        .setBufferSize(sc,frameWidth,frameHeight)
+                        .apply();
         return 0;
     }
     private Runnable rotateCropWork = new Runnable() {
@@ -346,11 +395,12 @@ public class ImagePlayer {
         mSx = mSx;
         mSy = mSy;
         mredraw = redraw;
-        mWorkHandler.post(rotateCropWork);
-        mTransformLStep = 0;
-        mTransformRStep = 0;
-        mTransformTStep = 0;
-        mTransformBStep = 0;
+        //mWorkHandler.post(rotateCropWork);
+        mWorkHandler.post(rotateWork);
+        Point p = getInitialFrameSize();
+        mSurfaceWidth = p.x;
+        mSurfaceHeight = p.y;
+        setPaintSize(sx,sy);
         return 0;
     }
 
@@ -413,6 +463,9 @@ public class ImagePlayer {
         mWorkHandler.removeCallbacks(setDataSourceWork);
         mWorkHandler.post(releasework);
         mStatus = Status.IDLE;
+        mSurfaceHeight = 0;
+        mSurfaceWidth = 0;
+        mDegree = 0;
     }
 
     public int getMxW() {
@@ -437,7 +490,7 @@ public class ImagePlayer {
 
     }
 
-    public enum Status {PREAPRED, PLAYING, STOPPED, IDLE}
+    public enum Status {PREPARED, PLAYING, STOPPED, IDLE}
 
     public interface PrepareReadyListener {
         void Prepared();
@@ -445,4 +498,31 @@ public class ImagePlayer {
         void playerr();
     }
 
+    public static boolean getProperties(String key, boolean def) {
+        boolean defVal = def;
+        try {
+            Class properClass = Class.forName("android.os.SystemProperties");
+            Method getMethod = properClass.getMethod("getBoolean", String.class, boolean.class);
+            defVal = (boolean) getMethod.invoke(null, key, def);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        } finally {
+            Log.d(TAG, "getProperty:" + key + " defVal:" + defVal);
+            return defVal;
+        }
+    }
+
+    public static int getProperties(String key, int def) {
+        int defVal = def;
+        try {
+            Class properClass = Class.forName("android.os.SystemProperties");
+            Method getMethod = properClass.getMethod("getInt", String.class, int.class);
+            defVal = (int) getMethod.invoke(null, key, def);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        } finally {
+            Log.d(TAG, "getProperty:" + key + " defVal:" + defVal);
+            return defVal;
+        }
+    }
 }

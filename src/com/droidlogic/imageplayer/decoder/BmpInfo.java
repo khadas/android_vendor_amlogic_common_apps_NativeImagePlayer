@@ -15,6 +15,7 @@ import android.system.Os;
 import android.util.Log;
 
 public class BmpInfo {
+    public static enum Status {SETDATASOURCE, DECODE, PLAYING, STOP}
     int mBmpWidth;
     int mBmpHeight;
     float mSampleSize;
@@ -22,13 +23,13 @@ public class BmpInfo {
     ImagePlayer mImagePlayer;
     long mNativeBmpPtr;
     long mDecoderPtr;
-
+    Status mCurrentStatus = Status.STOP;
 
     public void setImagePlayer(ImagePlayer player) {
         mImagePlayer = player;
     }
 
-    public boolean setDataSrouce(String filePath) {
+    public boolean setDataSource(String filePath) {
         this.filePath = filePath;
         File file = new File(filePath);
         if (!file.canRead()) {
@@ -46,6 +47,7 @@ public class BmpInfo {
             e.printStackTrace();
             return false;
         }
+        mCurrentStatus = Status.SETDATASOURCE;
         return true;
     }
 
@@ -75,19 +77,28 @@ public class BmpInfo {
             mBmpWidth = tempWidth;
             mBmpHeight= tempHeight;
             Log.d("TAG", "mImagePlayer" + tempWidth + "x" + tempHeight);
-            return decodeInner(mDecoderPtr, tempWidth, tempHeight);
+            boolean ret =  decodeInner(mDecoderPtr, tempWidth, tempHeight);
+            mCurrentStatus = Status.DECODE;
+            return ret;
         } else return false;
     }
 
     public boolean renderFrame() {
-        return 0 == mImagePlayer.nativeShow(mNativeBmpPtr);
+        boolean ret = false;
+        if (mCurrentStatus == Status.DECODE) {
+            ret = ( 0 == mImagePlayer.nativeShow(mNativeBmpPtr));
+            mCurrentStatus = Status.PLAYING;
+        }
+        return ret;
     }
 
     public void release() {
-        nativeRelease(mDecoderPtr);
+        if (mCurrentStatus == Status.DECODE || mCurrentStatus == Status.PLAYING)
+            nativeRelease(mDecoderPtr);
         mBmpWidth = 0;
         mBmpHeight = 0;
         mSampleSize = 1;
+        mCurrentStatus = Status.STOP;
     }
 
     public int getBmpWidth() {

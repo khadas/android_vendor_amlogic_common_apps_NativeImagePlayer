@@ -38,6 +38,8 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.Size;
 import android.view.KeyEvent;
+import android.view.Surface;
+import android.view.SurfaceControl;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -56,7 +58,6 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.view.SurfaceControl;
 import android.graphics.Rect;
-
 import java.io.File;
 import java.io.FileDescriptor;
 import java.lang.reflect.Method;
@@ -69,7 +70,7 @@ import android.view.animation.AlphaAnimation;
 import android.view.animation.ScaleAnimation;
 
 import androidx.core.app.ActivityCompat;
-import com.droidlogic.imageplayer.decoder.BmpInfoFractory;
+import com.droidlogic.imageplayer.decoder.BmpInfoFactory;
 import com.droidlogic.imageplayer.decoder.ImagePlayer;
 
 
@@ -115,7 +116,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private static final String SURFACE_COMPOSER_INTERFACE_KEY = "android.ui.ISurfaceComposer";
     private boolean mPlayPicture;
     private ViewGroup mMenu;
-    private ImagePlayer mImageplayer;
+    private ImagePlayer mImagePlayer;
     private SurfaceView mSurfaceView;
     private Animation mMenuOutAnimation;
     private Animation mMenuInAnimation;
@@ -127,10 +128,8 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     private View mTimerSet;
     private TextView mTvAutoSkipTime;
     private View mMenuFocusView;
-    private ViewGroup mRootView;
     private TextView mScaleStateView;
     private float mScale = SCALE_ORI;
-    private float mRotateScale = SCALE_ORI;
     private int mIndex;
     private String mCurPicPath;
     private int mTransferX;
@@ -164,8 +163,8 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     };
     private ArrayList<Uri> mImageList = new ArrayList<Uri>();
     private ArrayList<String> mPathList = new ArrayList<String>();
-    private final int mOsdWidth = getProperties("ro.surface_flinger.max_graphics_width", 1920);
-    private final int mOsdHeight = getProperties("ro.surface_flinger.max_graphics_height", 1080);
+    private final int mOsdWidth = ImagePlayer.getProperties("ro.surface_flinger.max_graphics_width", 1920);
+    private final int mOsdHeight = ImagePlayer.getProperties("ro.surface_flinger.max_graphics_height", 1080);
     private String mCurrenAXIS;
     private int mSlideIndex;
     private int mDegress;
@@ -225,7 +224,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         int[] grantResults) {
         if (requestCode == REQUEST_EXTERNAL_STORAGE) {
             if (grantResults.length == 2 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                if (mImageplayer.getPrepareListener() == null) {
+                if (mImagePlayer.getPrepareListener() == null) {
                     showBmp();
                 }
                 return;
@@ -264,21 +263,21 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             Log.e(TAG, "runAndShow pic path empty!");
             return;
         }
-        if (!mImageplayer.setDataSource(mCurPicPath)) {
+        if (!mImagePlayer.setDataSource(mCurPicPath)) {
             mUIHandler.sendEmptyMessageDelayed(NOT_DISPLAY, MSG_DELAY_TIME);
         } else {
            // mSurfaceView.setVisibility(View.VISIBLE);
-            mImageplayer.setPrepareListener(this);
+            mImagePlayer.setPrepareListener(this);
         }
     }
 
     public void adjustViewSize(int degree, float scale) {
         runOnUiThread(() -> {
-            int srcW = mImageplayer.getBmpWidth();
-            int srcH = mImageplayer.getBmpHeight();
+            int srcW = mImagePlayer.getBmpWidth();
+            int srcH = mImagePlayer.getBmpHeight();
             if ((degree / ROTATION_DEGREE) % 2 != 0) {
-                srcW = mImageplayer.getBmpHeight();
-                srcH = mImageplayer.getBmpWidth();
+                srcW = mImagePlayer.getBmpHeight();
+                srcH = mImagePlayer.getBmpWidth();
                 if (srcW > mOsdWidth || srcH > mOsdHeight) {
                     float scaleDown = 1.0f * mOsdWidth / srcW < 1.0f * mOsdHeight / srcH ?
                             1.0f * mOsdWidth / srcW : 1.0f * mOsdHeight / srcH;
@@ -291,9 +290,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
                 srcH *= scale;
             }
             Log.d(TAG, "show setFixedSize" + srcW + "x" + srcH);
-           // if (scale == SCALE_ORI && srcW < mOsdWidth
-            //    && srcH<mOsdHeight && mImageplayer.getBmpSample() > 1) {
-           if (srcW > BmpInfoFractory.BMP_SMALL_W || srcH>BmpInfoFractory.BMP_SMALL_H) {
+           if (srcW > BmpInfoFactory.BMP_SMALL_W || srcH>BmpInfoFactory.BMP_SMALL_H) {
                 float scaleUp = 1.0f * mOsdWidth /srcW < 1.0f * mOsdHeight /srcH?
                          1.0f * mOsdWidth /srcW : 1.0f * mOsdHeight /srcH;
                 srcH = (int) Math.ceil(scaleUp*srcH);
@@ -305,11 +302,16 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             Log.d(TAG, "show setFixedSize" + srcW + "x" + srcH);
             int frameWidth = ((srcW + 1) & ~1);
             int frameHeight = ((srcH + 1) & ~1);
-            Log.d(TAG, "--show setFixedSize after scale to surface" + frameWidth + "x" + frameHeight);
-            mSurfaceView.setLeft((mImageplayer.getMxW()-frameWidth)/2);
-            mSurfaceView.setTop((mImageplayer.getMxH()-frameHeight)/2);
-            mSurfaceView.getHolder().setFixedSize(frameWidth, frameHeight);
-            Log.d(TAG, "--show setFixedSize after scale to surface" + mSurfaceView.getLeft() + "x" + mSurfaceView.getTop());
+            Log.d(TAG, "--show setFixedSize after scale to surface" + frameWidth + "x" + frameHeight
+            +"mImagePlayer.getMxW():"+mImagePlayer.getMxW()+"x"+mImagePlayer.getMxH());
+            int left = (mImagePlayer.getMxW()-frameWidth)/2;
+            int top = (mImagePlayer.getMxH()-frameHeight)/2;
+            SurfaceControl sc = mSurfaceView.getSurfaceControl();
+            new SurfaceControl.Transaction().setVisibility(sc, true)
+                            .setGeometry(sc, null, new Rect(left, top, left+frameWidth, top+frameHeight), Surface.ROTATION_0)
+                            .setBufferSize(sc,frameWidth,frameHeight)
+                            .apply();
+            Log.d(TAG, "--show" + left + " " + top+" "+(left+frameWidth)+" "+(top+frameHeight));
         });
     }
 
@@ -340,39 +342,12 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
         mImageList = initFileList(mUri);
 
-        if (getProperties("rw.app.imageplayer.debug", false)) {
+        if (ImagePlayer.getProperties("rw.app.imageplayer.debug", false)) {
             initNextButton();
         }
         Log.d(TAG, "onCreate uri " + mUri + " scheme " + mUri.getScheme() + " path " + mUri.getPath());
     }
 
-    private static boolean getProperties(String key, boolean def) {
-        boolean defVal = def;
-        try {
-            Class properClass = Class.forName("android.os.SystemProperties");
-            Method getMethod = properClass.getMethod("getBoolean", String.class, boolean.class);
-            defVal = (boolean) getMethod.invoke(null, key, def);
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        } finally {
-            Log.d(TAG, "getProperty:" + key + " defVal:" + defVal);
-            return defVal;
-        }
-    }
-
-    private static int getProperties(String key, int def) {
-        int defVal = def;
-        try {
-            Class properClass = Class.forName("android.os.SystemProperties");
-            Method getMethod = properClass.getMethod("getInt", String.class, int.class);
-            defVal = (int) getMethod.invoke(null, key, def);
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        } finally {
-            Log.d(TAG, "getProperty:" + key + " defVal:" + defVal);
-            return defVal;
-        }
-    }
 
     private void initNextButton() {
         Log.v(TAG, "mImageList count:" + mImageList.size());
@@ -519,7 +494,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
     private void changePicture(boolean next, boolean forceSkip) {
         Log.i(TAG, "skipPicture-->next:" + next + "\tforceSkip:" + forceSkip);
-        delaySkip();
+      //  delaySkip();
         if (!forceSkip && isScaleModel) return;
         if (next) {
             mIndex++;
@@ -533,9 +508,12 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         }
         Log.i(TAG, "skipPicture-->mIndex:" + mIndex);
         mUri = mImageList.get(mIndex);
-        mImageplayer.release();
        // mSurfaceView.setVisibility(View.GONE);
-        Log.v(TAG, "mImageplayer release");
+        Log.v(TAG, "mImagePlayer release");
+        mScale = SCALE_ORI;
+        mImagePlayer.nativeReset();
+        //mSurfaceView.getHolder().setFixedSize(mImagePlayer.getMxW(),mImagePlayer.getMxH
+        mImagePlayer.release();
         showBmp();
     }
 
@@ -569,7 +547,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         mSurfaceView.setFocusableInTouchMode(true);
         mSurfaceView.setOnClickListener(this);
         mMenu = findViewById(R.id.menu_layout);
-        mRootView = (ViewGroup) findViewById(R.id.root);
         mLoadingProgress = findViewById(R.id.loading_image);
         mMenuOutAnimation = AnimationUtils.loadAnimation(this, R.anim.menu_out);
         mMenuOutAnimation.setAnimationListener(new AnimListener() {
@@ -683,7 +660,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     }
 
     private void rotate(boolean right) {
-        if (null == mImageplayer || !mImageplayer.CurrentBmpAvailable()) {
+        if (null == mImagePlayer || !mImagePlayer.CurrentBmpAvailable()) {
             Log.e(TAG, "rotateRight imageplayer null");
             return;
         }
@@ -695,102 +672,28 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         }
         mDegress = mDegress % 360;
         Log.d(TAG, "rotate degree " + mPredegree + " --->" + mDegress);
-        AnimationSet setAnimation = new AnimationSet(true);
-        Animation alpha = new AlphaAnimation(0.5f, 1);
-        Animation rotate = new RotateAnimation(mPredegree, mDegress, Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
-
-        float scaleSize = needScaleAnimation();
-        if (scaleSize > 0) {
-            Log.d(TAG, "rotate degree needScaleAnimation:scaleSize" + " --->" + scaleSize);
-            Animation scale1 = new ScaleAnimation(1, scaleSize, 1, scaleSize, Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
-            setAnimation.addAnimation(scale1);
+        if (mScale != SCALE_ORI) {
+            mImagePlayer.setRotateScale((mDegress + 360) % 360,mScale,mScale);
+        }else {
+            mImagePlayer.setRotate((mDegress + 360) % 360);
         }
-
-        setAnimation.addAnimation(alpha);
-        setAnimation.addAnimation(rotate);
-        setAnimation.setDuration(200);
-        setAnimation.setFillAfter(true);
-        rotate.setAnimationListener(new Animation.AnimationListener() {
-            @Override
-            public void onAnimationStart(Animation animation) {
-            }
-
-            @Override
-            public void onAnimationEnd(Animation animation) {
-                //     if (mScale == SCALE_ORI) {
-                mImageplayer.setRotate((mDegress + 360) % 360);
-             /*   } else {
-                    mImageplayer.setRotateScale((mDegress + 360) % 360, mScale, mScale);
-                }*/
-            }
-
-            @Override
-            public void onAnimationRepeat(Animation animation) {
-
-            }
-        });
-        mRootView.startAnimation(setAnimation);
-        mRotateScale = scaleSize;
     }
 
     private boolean translate(int x, int y) {
-        Log.d("TAG", "translate" + x + ";" + y);
+        if (mScale <= 1.0f) return false;
+        Log.d("TAG", "translate" + x + ";" + y+"mDegress");
         int xaxis = x;
         int yaxis = y;
-        int degree = (mDegress + 360) % 360;
-        if (degree == 90) {
-            xaxis = y;
-            yaxis = -x;
-        } else if (degree == 180) {
-            xaxis = -x;
-            yaxis = -y;
-        } else if (degree == 270) {
-            xaxis = -y;
-            yaxis = x;
-        }
         int tempX = mTransferX + xaxis;
         int tempY = mTransferY + yaxis;
         int step = (int) ((mScale * 10 - SCALE_ORI * 10) / (SCALE_RATIO * 10));
         if (Math.abs(tempX) > step || Math.abs(tempY) > step) {
             return false;
         }
-        float scaleSize = mScale;//*mRotateScale;
-        int osdWidthStep = (int) Math.ceil((mOsdWidth * scaleSize - mOsdWidth) / (2 * step * scaleSize));
-        int osdHeightStep = (int) Math.ceil((mOsdHeight * scaleSize - mOsdHeight) / (2 * step * scaleSize));
-        Log.d("TAG", "osdWidthStep" + osdWidthStep + ":" + osdHeightStep + "(" + tempX + ":" + tempY + "mRotateScale" + mRotateScale);
-        /*if (false&&mDegress%180 != 0){
-            int mtemp = osdWidthStep;
-            osdWidthStep = osdHeightStep;
-            osdHeightStep = mtemp;
-        }*/
-        if (Math.abs(tempX) == step || Math.abs(tempY) == step) {
-            if (tempX == 0) {
-                mRootView.scrollTo(0, tempY * osdHeightStep + 30 * (tempY / Math.abs(tempY)));
-            } else if (tempY == 0) {
-                mRootView.scrollTo(tempX * osdWidthStep + 30 * (tempX / Math.abs(tempX)), 0);
-            } else {
-                mRootView.scrollTo(tempX * osdWidthStep + 30 * (tempX / Math.abs(tempX)), tempY * osdHeightStep + 30 * (tempY / Math.abs(tempY)));
-            }
-        } else {
-            mRootView.scrollTo(tempX * osdWidthStep, tempY * osdHeightStep);
-        }
+        mImagePlayer.setTranslate(tempX , tempY ,mScale);
         mTransferX = tempX;
         mTransferY = tempY;
         return true;
-    }
-
-    private float needScaleAnimation() {
-        int rvW = mRootView.getRight() - mRootView.getLeft();
-        int rvH = mRootView.getBottom() - mRootView.getTop();
-        Log.d(TAG, "mRootView.getLeft()" + mRootView.getLeft() + ":" + mRootView.getRight() + ":" +
-                mRootView.getTop() + ":" + mRootView.getBottom());
-        if (rvW > mOsdHeight && rvH < mOsdWidth ||
-                rvW < mOsdHeight && rvH > mOsdWidth) {
-            if (mDegress % 180 != 0) {
-                return 1.0f * mOsdHeight / mOsdWidth;
-            }
-        }
-        return 0f;
     }
 
     private void update() {
@@ -814,24 +717,20 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
                 mLoadingProgress.setVisibility(View.GONE);
             });
         }
-        mImageplayer.setPrepareListener(null);
+        mImagePlayer.setPrepareListener(null);
     }
 
     @Override
     public void playerr() {
         if (paused) {return;}
         Log.d(TAG, "play error");
-        mRootView.clearAnimation();
         mScale = SCALE_ORI;
-        mRotateScale = SCALE_ORI;
-        mRootView.setScaleX(SCALE_ORI);
-        mRootView.setScaleY(SCALE_ORI);
-        mImageplayer.nativeReset();
+        mImagePlayer.nativeReset();
         final String errStr = mCurPicPath + getString(R.string.not_display);
         runOnUiThread(() -> {
             Toast.makeText(this, errStr, Toast.LENGTH_SHORT).show();
         });
-        mImageplayer.release();
+        mImagePlayer.release();
     }
 
     @Override
@@ -842,23 +741,16 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         if (mDegress != DEFAULT_DEGREE) {
             mDegress = DEFAULT_DEGREE;
         }
-        mRootView.clearAnimation();
-       /* runOnUiThread(() -> {
-            restoreView(SCALE_ORI);
-        });*/
-        mImageplayer.show();
-        adjustViewSize(DEFAULT_DEGREE, SCALE_ORI);
+        mImagePlayer.show();
     }
 
     private void restoreView(float scale) {
         setModelEnable(false);
         mScaleStateView.setVisibility(View.INVISIBLE);
         mScale = scale;
-        mRotateScale = scale;
-        setScale(mRotateScale);
+        setScale(mScale);
         mTransferX = 0;
         mTransferY = 0;
-        mRootView.scrollTo(0, 0);
     }
 
     private void setModelEnable(boolean isEnable) {
@@ -892,7 +784,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     }
 
     private void scale(boolean scaleUp) {
-        if (null == mImageplayer || !mImageplayer.CurrentBmpAvailable()) {
+        if (null == mImagePlayer || !mImagePlayer.CurrentBmpAvailable()) {
             Log.e(TAG, "scale imageplayer null");
             return;
         }
@@ -904,7 +796,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         }
 
         mScale = (float) (Math.round(mScale * 100) * 1.0 / 100);
-        Log.d(TAG, "scale " + mScale + "-" + mRotateScale);
 
         // value like 1.999999 could continue to be enlarged or else
         if ((SCALE_MAX - SCALE_ERR) <= mScale) {
@@ -926,23 +817,21 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     }
 
     private void setScale(float scale) {
-        if (null == mImageplayer || !mImageplayer.CurrentBmpAvailable()) {
+        if (null == mImagePlayer || !mImagePlayer.CurrentBmpAvailable()) {
             Log.e(TAG, "scale imageplayer null");
             return;
         }
         Log.e(TAG, "scale setScale :" + scale);
 
         this.mScale = scale;
-        mRootView.setScaleX(mScale);
-        mRootView.setScaleY(mScale);
-        if (mImageplayer != null) {
+        if (mImagePlayer != null) {
             if (mDegress % 360 != 0) {
                 Log.d(TAG, "scale has rotation with " + mDegress);
-                mImageplayer.setRotate((mDegress + 360) % 360);
-                //mImageplayer.setRotateScale((mDegress + 360) % 360, mScale, mScale);
-            }/* else {
-                mImageplayer.setScale(mScale, mScale);
-            }*/
+               // mImagePlayer.setRotate((mDegress + 360) % 360);
+                mImagePlayer.setRotateScale((mDegress + 360) % 360, mScale, mScale);
+            } else {
+                mImagePlayer.setScale(mScale, mScale);
+            }
         }
     }
 
@@ -969,8 +858,8 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         super.onStart();
         paused = false;
         Log.d(TAG, "onStart");
-        mImageplayer = ImagePlayer.getInstance();
-        mImageplayer.initPlayer();
+        mImagePlayer = ImagePlayer.getInstance();
+        mImagePlayer.initPlayer();
         showBmp();
         mUIHandler.sendEmptyMessageDelayed(DISMISS_MENU, DISPLAY_MENU_TIME);
     }
@@ -981,10 +870,10 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         Log.d(TAG, "onStop");
         paused = true;
 
-        if (mImageplayer != null) {
+        if (mImagePlayer != null) {
             Log.d(TAG, "onStop imageplayer release");
-            mImageplayer.release();
-            mImageplayer = null;
+            mImagePlayer.release();
+            mImagePlayer = null;
         }
     }
 
@@ -1002,7 +891,6 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
      */
     @Override
     public void onClick(View v) {
-        mRootView.scrollTo(0, 0);
         mTransferX = 0;
         mTransferY = 0;
         switch (v.getId()) {
@@ -1129,18 +1017,18 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
 
         @Override
         public void surfaceCreated(SurfaceHolder holder) {
-            if (mImageplayer != null) {
+            if (mImagePlayer != null) {
                 long time = System.currentTimeMillis();
-                mImageplayer.bindSurface(holder);
+                mImagePlayer.setDisplay(mSurfaceView);
                 Log.d(TAG, "surfaceCreated setDisplay end"+(System.currentTimeMillis()-time));
             }
         }
 
         @Override
         public void surfaceDestroyed(SurfaceHolder holder) {
-            if (mImageplayer != null) {
+            if (mImagePlayer != null) {
                 Log.d(TAG, "surfaceCreated surfaceDestroyed");
-                mImageplayer.stop();
+                mImagePlayer.stop();
             }
         }
 

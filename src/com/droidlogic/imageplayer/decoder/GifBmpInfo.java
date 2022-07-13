@@ -21,12 +21,17 @@ public class GifBmpInfo extends BmpInfo {
     int mCurrentId = 0;
 
     public boolean renderFrame() {
+        boolean ret = false;
         Log.d(TAG, "renderFrame" + mNativeBmpPtr);
-        return 0 == mImagePlayer.nativeShow(mNativeBmpPtr);
+        if (mCurrentStatus == Status.DECODE) {
+            ret = ( 0 == mImagePlayer.nativeShow(mNativeBmpPtr));
+            mCurrentStatus = Status.PLAYING;
+        }
+        return ret;
     }
 
     @Override
-    public boolean setDataSrouce(String filePath) {
+    public boolean setDataSource(String filePath) {
         mNativeBmpPtr = 0;
         this.filePath = filePath;
         File file = new File(filePath);
@@ -38,6 +43,7 @@ public class GifBmpInfo extends BmpInfo {
             mFrameCount = 0;
             mCurrentId = 0;
             mDecoderPtr = nativeSetGif(filePath);
+             mCurrentStatus = Status.SETDATASOURCE;
             if (mFrameCount <= 1) return false;
             if (mDecoderPtr <= 0) return false;
         } catch (Exception e) {
@@ -49,7 +55,12 @@ public class GifBmpInfo extends BmpInfo {
 
     @Override
     public boolean decode() {
-        return decodeNext();
+        boolean ret = false;
+        if (mCurrentStatus == Status.SETDATASOURCE) {
+            ret = decodeNext();
+            mCurrentStatus = Status.DECODE;
+        }
+        return ret;
     }
 
     @Override
@@ -72,7 +83,8 @@ public class GifBmpInfo extends BmpInfo {
         mDecoderPtr = 0;
         mFrameCount = 0;
         mCurrentId = 0;
-        nativeReleaseLastFrame(mDecoderPtr);
+        if (mCurrentStatus == Status.DECODE || mCurrentStatus == Status.PLAYING)
+            nativeReleaseLastFrame(mDecoderPtr);
     }
     private native void nativeReleaseLastFrame(long decoder);
     private native long nativeSetGif(String filepath);

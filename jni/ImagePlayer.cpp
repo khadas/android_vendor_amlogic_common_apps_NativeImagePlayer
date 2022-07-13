@@ -39,9 +39,11 @@ SharedMemoryProxy mMemory;
 static jfieldID mImagePlayer_ScreenWidth;
 static jfieldID mImagePlayer_ScreenHeight;
 static jfieldID mImagePlayer_VideoScale;
+
 extern bool am_gralloc_set_uvm_buf_usage(const native_handle_t * hnd, int usage);
 extern void rgbToYuv420(uint8_t* rgbBuf, size_t width, size_t height, uint8_t* yPlane,
         uint8_t* crPlane, uint8_t* cbPlane, size_t chromaStep, size_t yStride, size_t chromaStride, SkColorType colorType);
+
 static std::string& StringTrim(std::string &str)
 {
     if (str.empty()) {
@@ -80,6 +82,7 @@ static int StringSplit(std::vector<std::string>& dst, const std::string& src, co
 }
 static int reRender(int32_t width, int32_t height, void *data, size_t inLen,  SkColorType colorType);
 static int render(int32_t width, int32_t height, void *data, size_t inLen,  SkColorType colorType);
+
 static int initVideoParam(JNIEnv *env, jobject entity) {
     ALOGE("initVideoParam");
     jclass imageplayer_class = FindClassOrDie(env,"com/droidlogic/imageplayer/decoder/ImagePlayer");
@@ -215,7 +218,7 @@ static int reRender(int32_t width, int32_t height, void *data, size_t inLen, SkC
     int ret = 0;
     int frame_width = ((width + 1) & ~1);
     int frame_height =((height + 1) & ~1);
-    ALOGE("render for frame size (%d x %d)-->(%d x %d)",width,height,frame_width,frame_height);
+    ALOGE("Repeat render for frame size (%d x %d)-->(%d x %d)",width,height,frame_width,frame_height);
     ANativeWindowBuffer *buf;
     native_window_set_buffers_dimensions(mNativeWindow.get(), frame_width, frame_height);
     //status_t res =  mNativeWindow->dequeueBuffer(mNativeWindow.get(),&buf,&fenceFd);
@@ -288,9 +291,8 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen, SkCol
         ALOGE("%s: Dequeue buffer failed: %s (%d)", __FUNCTION__, strerror(-res), res);
         return ret;
     }
-    ALOGE("***************************");
     am_gralloc_set_uvm_buf_usage(buf->handle, 1);
-    ALOGE("renderbuf %d %d  %d %d %d",buf->format,buf->stride,buf->width, buf->height, fenceFd);
+    ALOGE("renderBuf %d %d  %d %d %d",buf->format,buf->stride,buf->width, buf->height, fenceFd);
     Rect bounds(frame_width,frame_height);
     uint8_t* img = NULL;
     err =  mapper.lock(buf->handle,GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_NEVER,bounds,(void**)(&img));
@@ -325,6 +327,42 @@ static int render(int32_t width, int32_t height, void *data, size_t inLen, SkCol
     return 0;
 }
 
+static int renderEmpty(int32_t width, int32_t height) {
+    GraphicBufferMapper &mapper = GraphicBufferMapper::get();
+    status_t err = NO_ERROR;
+    int ret = 0;
+    int frame_width = ((width + 1) & ~1);
+    int frame_height =((height + 1) & ~1);
+    ALOGE("render Empty for frame size (%d x %d)-->(%d x %d)",width,height,frame_width,frame_height);
+    ANativeWindowBuffer *buf;
+    native_window_set_buffers_dimensions(mNativeWindow.get(), frame_width, frame_height);
+     status_t res =  native_window_dequeue_buffer_and_wait(mNativeWindow.get(),&buf);
+    if (res != OK) {
+        ALOGE("%s: Dequeue buffer failed: %s (%d)", __FUNCTION__, strerror(-res), res);
+        return ret;
+    }
+    am_gralloc_set_uvm_buf_usage(buf->handle, 1);
+    ALOGE("renderBuf %d %d  %d %d %d",buf->format,buf->stride,buf->width, buf->height, fenceFd);
+    Rect bounds(frame_width,frame_height);
+    uint8_t* img = NULL;
+    err =  mapper.lock(buf->handle,GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_NEVER,bounds,(void**)(&img));
+    if (err != NO_ERROR) return err;
+    if (ret != OK) {
+        ALOGE("%s: Error trying to lock output buffer fence: %s (%d)", __FUNCTION__,
+                strerror(-ret), ret);
+        return ret;
+    }
+    if (img == NULL) return -1;
+    memset(img, 16, buf->height * buf->stride);
+    memset(img+buf->height * buf->stride, 128, buf->height * buf->stride*1/2);
+    if (!isShown) return -1;
+    mapper.unlock(buf->handle);
+
+    mNativeWindow->queueBuffer(mNativeWindow.get(), buf,  -1);
+    img = NULL;
+    return 0;
+}
+
 static jint nativeShow(JNIEnv *env, jclass clz, jlong jbitmap){
     ALOGE("nativeShow %d %d %d",(mNativeWindow.get() == NULL),(imageplayer == NULL),(jbitmap ==0));
     if (mNativeWindow.get() == NULL || imageplayer == NULL || jbitmap ==0 ) {
@@ -337,11 +375,12 @@ static jint nativeShow(JNIEnv *env, jclass clz, jlong jbitmap){
     bitmap->getSkBitmap(&skbitmap);
     ALOGE("skColorType %d %d %d",bitmap->colorType(),bitmap->width(),bitmap->height());
     uint8_t* pixelBuffer = (uint8_t*)skbitmap.getPixels();
+
     mLastWidth = 0;
     mLastHeight = 0;
     return render(bitmap->width(),bitmap->height(),pixelBuffer,bitmap->width()*bitmap->height(),skbitmap.colorType());
 
-  }
+}
 static jint rotateScaleCrop(JNIEnv* env, jclass clz,jint rotation, jfloat sx,jfloat sy, jboolean redraw) {
     int transform = 0;
     int ret = 0;
@@ -406,14 +445,15 @@ static jint rotateScaleCrop(JNIEnv* env, jclass clz,jint rotation, jfloat sx,jfl
     return ret;
 }
 
-    void nativeReset(JNIEnv *env,jclass clz) {
-        if (mNativeWindow != nullptr) {
-            native_window_set_buffers_transform(mNativeWindow.get(), 0);
-            ALOGD("nativeReset----->");
-        }
+void nativeReset(JNIEnv *env,jclass clz) {
+    if (mNativeWindow != nullptr) {
+        native_window_set_buffers_transform(mNativeWindow.get(), 0);
+        renderEmpty(1920,1080);
+        ALOGD("nativeReset----->");
     }
+}
 
-  static jint nativeScale(JNIEnv *env, jclass clz,jfloat sx,jfloat sy,jboolean redraw) {
+static jint nativeScale(JNIEnv *env, jclass clz,jfloat sx,jfloat sy,jboolean redraw) {
     SkBitmap bmp;
     int ret = 0;
     imageplayer->getSelf(bmp);
@@ -535,7 +575,7 @@ static const JNINativeMethod gImagePlayerMethod[] = {
     {"nativeTransform",          "(IFFIIIII)I",                               (void*)transform},
     {"nativeReset",                "()V",     (void*)nativeReset},
     {"initVideoParam",           "()I",     (void*)initVideoParam},
-    };
+};
 
 int register_com_droidlogic_imageplayer_decoder_ImagePlayer(JNIEnv* env) {
     return android::RegisterMethodsOrDie(env, "com/droidlogic/imageplayer/decoder/ImagePlayer", gImagePlayerMethod,
