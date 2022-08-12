@@ -29,4 +29,5 @@
     <string name="scale_to_minimized">"已经最小化"</string>
     <string name="scale_model_notice">"缩放模式\n点击返回键退出"</string>
     <string name="permission">"授权写文件"</string>
+    <string name="list_empty">"播放列表为空"</string>
 </resources>

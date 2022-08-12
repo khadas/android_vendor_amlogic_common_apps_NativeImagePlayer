@@ -29,4 +29,5 @@
     <string name="scale_to_minimized">"Has been minimized"</string>
     <string name="scale_model_notice">"Scale Model\npress the exit key to exit"</string>
     <string name="permission">"authorizing reading and writing files"</string>
+    <string name="list_empty">"playing list is empty!"</string>
 </resources>

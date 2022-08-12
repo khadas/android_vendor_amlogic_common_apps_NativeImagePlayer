@@ -94,6 +94,7 @@ public class ImagePlayer {
                 long time  = System.currentTimeMillis();
                 boolean decodeOk = mBmpInfoHandler.decode();
                 boolean ready = (mReadyListener != null);
+                Log.d("ImagePlayer","decodeOk"+decodeOk+" ready"+ready);
                 if (decodeOk && ready) {
                     mStatus = Status.PREPARED;
                     mReadyListener.Prepared();
@@ -267,7 +268,7 @@ public class ImagePlayer {
          return false;
     }
     public boolean show() {
-        if (mStatus != Status.PREPARED) {
+        if (mStatus != Status.PREPARED || mSurfaceView == null || mSurfaceView.getSurfaceControl() == null) {
             return false;
         }
         mWorkHandler.post(ShowFrame);
@@ -286,7 +287,7 @@ public class ImagePlayer {
         int frameHeight = (int)(mSurfaceHeight*sy);
         int top = (mOsdHeight - frameHeight)/2;
         int left = (mOsdWidth - frameWidth)/2;
-        Log.d("TAG","setPaintSize"+left+"-"+top+"-"+(left+frameWidth)+"-"+(top+frameHeight));
+        Log.d("TAG","setPaintSize"+left+"-"+top+"-"+(left+frameWidth)+"-"+(top+frameHeight)+" mSurfaceView"+mSurfaceView);
         SurfaceControl sc = mSurfaceView.getSurfaceControl();
         new SurfaceControl.Transaction().setVisibility(sc, true)
                         .setGeometry(sc, null, new Rect(left, top, left+frameWidth, top+frameHeight), Surface.ROTATION_0)
@@ -413,6 +414,7 @@ public class ImagePlayer {
             bindSurface = false;
             nativeUnbindSurface();
         }
+        mSurfaceView = null;
     }
     private boolean checkVideoAxis() {
         SystemControlManager mSystemControlManager = SystemControlManager.getInstance();

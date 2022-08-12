@@ -224,7 +224,9 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
         int[] grantResults) {
         if (requestCode == REQUEST_EXTERNAL_STORAGE) {
             if (grantResults.length == 2 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.d("TAG","mImagePlayer.getPrepareListener()"+mImagePlayer.getPrepareListener());
                 if (mImagePlayer.getPrepareListener() == null) {
+                    mImageList = initFileList(mUri);
                     showBmp();
                 }
                 return;
@@ -267,6 +269,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             mUIHandler.sendEmptyMessageDelayed(NOT_DISPLAY, MSG_DELAY_TIME);
         } else {
            // mSurfaceView.setVisibility(View.VISIBLE);
+           paused = false;
             mImagePlayer.setPrepareListener(this);
         }
     }
@@ -493,8 +496,13 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     }
 
     private void changePicture(boolean next, boolean forceSkip) {
-        Log.i(TAG, "skipPicture-->next:" + next + "\tforceSkip:" + forceSkip);
       //  delaySkip();
+        if (mImageList.size() == 0) {
+            runOnUiThread(() -> {
+                Toast.makeText(FullImageActivity.this, R.string.list_empty, Toast.LENGTH_LONG).show();
+            });
+            return;
+        }
         if (!forceSkip && isScaleModel) return;
         if (next) {
             mIndex++;
@@ -641,6 +649,7 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     }
 
     private void displayMenu(boolean show) {
+        mUIHandler.removeMessages(DISMISS_MENU);
         if (!show) {
             mMenu.startAnimation(mMenuOutAnimation);
             Log.d(TAG, "displayMenu set menu inVisible");
@@ -742,9 +751,11 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
             mDegress = DEFAULT_DEGREE;
         }
         mImagePlayer.show();
+        delaySkip();
     }
 
     private void restoreView(float scale) {
+        Log.d(TAG,"restoreView");
         setModelEnable(false);
         mScaleStateView.setVisibility(View.INVISIBLE);
         mScale = scale;
@@ -893,25 +904,38 @@ public class FullImageActivity extends Activity implements View.OnClickListener,
     public void onClick(View v) {
         mTransferX = 0;
         mTransferY = 0;
+        if (mTvAutoSkipTime != null) {
+            mTvAutoSkipTime.setText(R.string.manual_skip);
+            mUIHandler.removeCallbacks(skipTask);
+        }
         switch (v.getId()) {
             case R.id.tv_rotate_right:
+                mAutoSkipTime = 0;
                 mUIHandler.removeMessages(ROTATE_R);
                 mUIHandler.sendEmptyMessage(ROTATE_R);
                 break;
             case R.id.tv_rotate_left:
+                mAutoSkipTime = 0;
                 mUIHandler.removeMessages(ROTATE_L);
                 mUIHandler.sendEmptyMessage(ROTATE_L);
                 break;
             case R.id.tv_scale_up:
+                mAutoSkipTime = 0;
                 mUIHandler.removeMessages(SCALE_UP);
                 mUIHandler.sendEmptyMessage(SCALE_UP);
                 break;
             case R.id.tv_scale_down:
+                mAutoSkipTime = 0;
                 mUIHandler.removeMessages(SCALE_DOWN);
                 mUIHandler.sendEmptyMessage(SCALE_DOWN);
                 break;
             case R.id.tv_timer_set:
-                toggleAutoSkipTime();
+                if (isScaleModel && mScaleStateView != null) {
+                    mScaleStateView.setVisibility(isScaleModel ? View.VISIBLE : View.INVISIBLE);
+                    mScaleStateView.setText(R.string.scale_model_notice);
+                }else {
+                    toggleAutoSkipTime();
+                }
                 break;
             default:
                 break;
