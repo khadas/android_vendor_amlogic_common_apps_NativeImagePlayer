@@ -83,7 +83,16 @@ public class ImagePlayer {
             }
         }
     };
-
+    private Runnable reshow = new Runnable() {
+         @Override
+        public void run() {
+             if (mSurfaceView == null || mSurfaceView.getSurfaceControl() == null) {
+                 mWorkHandler.postDelayed(reshow, 200);
+             }else {
+                 show();
+             }
+        }
+    };
     private Runnable decodeRunnable = new Runnable() {
         @Override
         public void run() {
@@ -161,7 +170,8 @@ public class ImagePlayer {
         public void run() {
             synchronized(lockObject) {
                 if (bindSurface) {
-                    if (mStatus != Status.PREPARED) {
+                    Log.d(TAG,"mStatus"+mStatus);
+                    if (mStatus != Status.PREPARED && mStatus != Status.PLAYING) {
                         return;
                     }
                     Log.d("ShowFrame","mBmpInfo"+mBmpInfoHandler+"**"+mBmpInfoHandler.mNativeBmpPtr+"mStatus"+mStatus);
@@ -268,8 +278,13 @@ public class ImagePlayer {
          return false;
     }
     public boolean show() {
-        if (mStatus != Status.PREPARED || mSurfaceView == null || mSurfaceView.getSurfaceControl() == null) {
+        Log.d(TAG,"show"+mStatus+" "+mSurfaceView);
+        if (mStatus != Status.PREPARED) {
             return false;
+        }
+        if (mSurfaceView == null || mSurfaceView.getSurfaceControl() == null) {
+           mWorkHandler.postDelayed(reshow, 200);
+           return false;
         }
         mWorkHandler.post(ShowFrame);
         Point p = getInitialFrameSize();
@@ -279,6 +294,7 @@ public class ImagePlayer {
         return true;
     }
     public void setDisplay(SurfaceView surfaceview) {
+        Log.d(TAG,"setDisplay");
         mSurfaceView = surfaceview;
         bindSurface(surfaceview.getHolder());
     }
@@ -453,6 +469,7 @@ public class ImagePlayer {
             mWorkHandler.removeCallbacks(rotateWork);
             mWorkHandler.removeCallbacks(rotateCropWork);
             mWorkHandler.removeCallbacks(decodeRunnable);
+            Log.d(TAG,"stop");
             mWorkHandler.removeCallbacks(ShowFrame);
             unbindSurface();
             mStatus = Status.STOPPED;
@@ -460,6 +477,7 @@ public class ImagePlayer {
     }
 
     public void release() {
+        Log.d(TAG,"release");
         mWorkHandler.removeCallbacks(ShowFrame);
         mWorkHandler.removeCallbacks(decodeRunnable);
         mWorkHandler.removeCallbacks(setDataSourceWork);
