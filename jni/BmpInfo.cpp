@@ -186,14 +186,17 @@ bool decodeInner(JNIEnv *env, jobject obj1, jlong nativePtr, jint targetWidth, j
     }else if (imageWidth > targetWidth && imageWidth/targetWidth == imageHeight/targetHeight) {
         sampleSize = round(SURFACE_4K_WIDTH/targetWidth);
     }
-    SkColorType colorType = kN32_SkColorType;
-    if (imageInfo.colorType() == kGray_8_SkColorType || imageInfo.colorType() == kAlpha_8_SkColorType) {
-        colorType  = imageInfo.colorType();
-    }else if (colorType == kRGBA_F16_SkColorType) {
+
+    SkColorType colorType = imageInfo.colorType();
+    ALOGI("colorType : %d",colorType);
+    if (colorType == kGray_8_SkColorType || colorType == kAlpha_8_SkColorType || colorType == kN32_SkColorType) {
+
+    } else if (colorType == kRGBA_F16_SkColorType) {
         colorType = kN32_SkColorType;
     } else {
-        colorType = codec->computeOutputColorType(colorType);
+        colorType = codec->computeOutputColorType(kN32_SkColorType);
     }
+    ALOGI("colorType : %d",colorType);
     SkISize scaledDims = codec->getSampledDimensions(sampleSize);
     ALOGI("scale down origin picture %d %d %d-->%d %d\n",sampleSize,scaledDims.width(),
                 scaledDims.height(),targetWidth,targetHeight);
